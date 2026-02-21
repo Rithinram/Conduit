@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getTriageQueue, updateVitals, updateTriageStatus } from '../../../services/api';
+import { classifyUrgency } from '../../../../conduit-ml';
 
 const SmartTriage = () => {
     const [queue, setQueue] = useState([]);
@@ -36,16 +37,38 @@ const SmartTriage = () => {
         const fetchQueue = async () => {
             const data = await getTriageQueue(hospitalId);
             if (data && data.length > 0) {
-                setQueue(data.map(p => ({
-                    ...p, id: p._id, arrival: 'Just now', score: p.smartScore || 50, urgency: p.urgencyLevel || 'Moderate',
-                    vitals: { hr: p.vitals?.heartRate || 75, bp: p.vitals?.bloodPressure || '120/80', o2: p.vitals?.oxygenLevel || 98, temp: p.vitals?.temperature || 98.6 },
-                    status: p.triageStatus || 'Waiting'
-                })));
-            } else { setQueue(mockPatients); }
+                const enriched = await Promise.all(data.map(async p => {
+                    const vitals = {
+                        heart_rate: p.vitals?.heartRate || 75,
+                        systolic_bp: p.vitals?.bloodPressure ? parseInt(p.vitals.bloodPressure.split('/')[0]) : 120,
+                        temperature: p.vitals?.temperature || 98.6
+                    };
+                    const condition = p.symptoms?.[0] || 'General';
+                    const { score, level } = await classifyUrgency(condition, p.age || 35, 2, {}, vitals);
+
+                    return {
+                        ...p,
+                        id: p._id,
+                        arrival: 'Just now',
+                        score: score || p.smartScore || 50,
+                        urgency: level || p.urgencyLevel || 'Moderate',
+                        vitals: {
+                            hr: p.vitals?.heartRate || 75,
+                            bp: p.vitals?.bloodPressure || '120/80',
+                            o2: p.vitals?.oxygenLevel || 98,
+                            temp: p.vitals?.temperature || 98.6
+                        },
+                        status: p.triageStatus || 'Waiting'
+                    };
+                }));
+                setQueue(enriched);
+            } else {
+                setQueue(mockPatients);
+            }
             setIsLoading(false);
         };
         fetchQueue();
-        const interval = setInterval(fetchQueue, 5000);
+        const interval = setInterval(fetchQueue, 10000);
         return () => clearInterval(interval);
     }, [hospitalId]);
 
@@ -63,7 +86,6 @@ const SmartTriage = () => {
         return () => clearInterval(simInterval);
     }, []);
 
-    // Close filter dropdown on outside click
     useEffect(() => {
         const handleClick = (e) => { if (filterRef.current && !filterRef.current.contains(e.target)) setShowFilterDropdown(false); };
         document.addEventListener('mousedown', handleClick);
@@ -97,29 +119,22 @@ const SmartTriage = () => {
         }
     };
 
-    const calcSmartScore = (hr, o2, temp) => {
-        let score = 20;
-        if (hr > 100 || hr < 60) score += 25; else if (hr > 90) score += 10;
-        if (o2 < 90) score += 30; else if (o2 < 95) score += 15;
-        if (temp > 101) score += 20; else if (temp > 99.5) score += 10;
-        return Math.min(100, score);
-    };
+    const handleAddPatient = async () => {
+        const hr = parseInt(formData.hr) || 75;
+        const bp = formData.bp || '120/80';
+        const o2 = parseInt(formData.o2) || 98;
+        const temp = parseFloat(formData.temp) || 98.6;
 
-    const calcUrgency = (score) => {
-        if (score >= 75) return 'Critical'; if (score >= 55) return 'High';
-        if (score >= 35) return 'Moderate'; return 'Low';
-    };
+        const vitals = { heart_rate: hr, systolic_bp: parseInt(bp.split('/')[0]), temperature: temp };
+        const { score, level } = await classifyUrgency(formData.symptoms?.split(',')[0] || 'General', parseInt(formData.age) || 35, 2, {}, vitals);
 
-    const handleAddPatient = () => {
-        const hr = parseInt(formData.hr) || 75; const o2 = parseInt(formData.o2) || 98; const temp = parseFloat(formData.temp) || 98.6;
-        const score = calcSmartScore(hr, o2, temp); const urgency = calcUrgency(score);
         const newPatient = {
             id: `new-${Date.now()}`, name: formData.name, age: parseInt(formData.age) || 0,
             gender: formData.gender, bloodGroup: formData.bloodGroup,
             contact: formData.contact, emergencyContact: formData.emergencyContact,
             chiefComplaint: formData.chiefComplaint,
-            arrival: 'Just now', status: 'Waiting', score, urgency,
-            vitals: { hr, bp: formData.bp || '120/80', o2, temp },
+            arrival: 'Just now', status: 'Waiting', score, urgency: level,
+            vitals: { hr, bp, o2, temp },
             symptoms: formData.symptoms ? formData.symptoms.split(',').map(s => s.trim()).filter(Boolean) : ['General']
         };
         setQueue(prev => [newPatient, ...prev]);
@@ -154,7 +169,7 @@ const SmartTriage = () => {
                 </div>
                 <div className="card" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)', padding: 'var(--space-lg)' }}>
                     <div style={{ background: 'rgba(168, 85, 247, 0.1)', padding: 'var(--space-sm)', borderRadius: '12px' }}><Zap color="#a855f7" size={24} /></div>
-                    <div><div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>AUTO-TRIAGE ACTIVE</div><div style={{ fontSize: '1.5rem', fontWeight: 900 }}>V.4.2</div></div>
+                    <div><div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>ML TRIAGE ACTIVE</div><div style={{ fontSize: '1.5rem', fontWeight: 900 }}>V.4.2</div></div>
                 </div>
             </div>
 
@@ -170,7 +185,6 @@ const SmartTriage = () => {
                                 <Filter size={14} /> FILTER
                                 {activeFilterCount > 0 && <span style={{ position: 'absolute', top: '-6px', right: '-6px', background: '#ef4444', color: 'white', borderRadius: '50%', width: '18px', height: '18px', fontSize: '0.65rem', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{activeFilterCount}</span>}
                             </button>
-                            {/* Filter Dropdown */}
                             <AnimatePresence>
                                 {showFilterDropdown && (
                                     <motion.div initial={{ opacity: 0, y: -8, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8, scale: 0.95 }} transition={{ duration: 0.15 }}
@@ -226,7 +240,7 @@ const SmartTriage = () => {
                                         </div>
                                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
                                             <div style={{ fontSize: '1.2rem', fontWeight: 900, color: 'var(--primary)' }}>{patient.score}</div>
-                                            <div style={{ fontSize: '0.6rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Smart Score</div>
+                                            <div style={{ fontSize: '0.6rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>ML Score</div>
                                         </div>
                                     </div>
                                 </motion.div>
@@ -255,7 +269,7 @@ const SmartTriage = () => {
                                     <div style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--primary)', marginBottom: '4px' }}>CASE PROFILE</div>
                                     <h4 style={{ margin: 0, fontSize: '1.4rem' }}>{selectedPatient.name}</h4>
                                     <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap', marginTop: 'var(--space-sm)' }}>
-                                        {selectedPatient.symptoms.map(s => (
+                                        {selectedPatient.symptoms?.map(s => (
                                             <span key={s} style={{ background: 'var(--surface)', padding: '4px 10px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 600 }}>{s}</span>
                                         ))}
                                     </div>
@@ -269,10 +283,13 @@ const SmartTriage = () => {
                                     </div>
                                 </div>
                                 <div>
-                                    <div style={{ fontWeight: 800, fontSize: '0.8rem', marginBottom: 'var(--space-md)' }}>AI PREDICTION (98% Conf.)</div>
+                                    <div style={{ fontWeight: 800, fontSize: '0.8rem', marginBottom: 'var(--space-md)' }}>ML PREDICTION ({selectedPatient.score}% Conf.)</div>
                                     <div className="card" style={{ background: '#f8fafc', padding: 'var(--space-md)', fontSize: '0.85rem' }}>
                                         <TrendingUp size={16} color="var(--primary)" style={{ marginBottom: '8px' }} />
-                                        <p style={{ margin: 0, lineHeight: 1.5, color: '#334155' }}>High probability of <strong>Inflammatory Response</strong>. Recommended protocol: Immediate fluid resuscitation and sepsis screen.</p>
+                                        <p style={{ margin: 0, lineHeight: 1.5, color: '#334155' }}>
+                                            Urgency detected as <strong>{selectedPatient.urgency}</strong>.
+                                            Target triage protocol initiated based on statistical biomarkers.
+                                        </p>
                                     </div>
                                 </div>
                             </div>
@@ -286,17 +303,15 @@ const SmartTriage = () => {
                 {showAddModal && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={overlayStyle} onClick={() => setShowAddModal(false)}>
                         <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} style={modalStyle} onClick={e => e.stopPropagation()}>
-                            {/* Modal Header */}
                             <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                     <div style={{ width: '36px', height: '36px', background: 'linear-gradient(135deg, var(--primary), #6366f1)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Plus size={18} color="white" /></div>
-                                    <div><h3 style={{ margin: 0, fontSize: '1.1rem' }}>Add New Patient</h3><p style={{ margin: 0, fontSize: '0.75rem', color: '#64748b' }}>Enter patient details for triage assessment</p></div>
+                                    <div><h3 style={{ margin: 0, fontSize: '1.1rem' }}>Add New Patient</h3><p style={{ margin: 0, fontSize: '0.75rem', color: '#64748b' }}>Enter patient details for ML triage assessment</p></div>
                                 </div>
                                 <button onClick={() => setShowAddModal(false)} style={{ background: '#f1f5f9', border: 'none', borderRadius: '8px', padding: '8px', cursor: 'pointer', display: 'flex' }}><X size={18} color="#64748b" /></button>
                             </div>
 
                             <div style={{ padding: '20px 24px' }}>
-                                {/* Personal Details */}
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
                                     <User size={16} color="var(--primary)" /><span style={{ fontWeight: 800, fontSize: '0.85rem', color: 'var(--primary)' }}>Personal Information</span>
                                 </div>
@@ -309,7 +324,6 @@ const SmartTriage = () => {
                                     <div style={{ gridColumn: 'span 2' }}><label style={labelStyle}>Emergency Contact</label><input style={fieldStyle} placeholder="Emergency contact number" value={formData.emergencyContact} onChange={e => setFormData({ ...formData, emergencyContact: e.target.value })} /></div>
                                 </div>
 
-                                {/* Health Details */}
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
                                     <Heart size={16} color="#ef4444" /><span style={{ fontWeight: 800, fontSize: '0.85rem', color: '#ef4444' }}>Health Information & Vitals</span>
                                 </div>
@@ -323,12 +337,11 @@ const SmartTriage = () => {
                                 </div>
                             </div>
 
-                            {/* Modal Footer */}
                             <div style={{ padding: '16px 24px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
                                 <button onClick={() => setShowAddModal(false)} style={{ padding: '10px 20px', background: '#f1f5f9', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem', color: '#64748b' }}>Cancel</button>
                                 <button onClick={handleAddPatient} disabled={!formData.name || !formData.age}
                                     style={{ padding: '10px 24px', background: (!formData.name || !formData.age) ? '#cbd5e1' : 'var(--primary)', color: 'white', border: 'none', borderRadius: '8px', cursor: (!formData.name || !formData.age) ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <CheckCircle2 size={16} /> Confirm & Add to Queue
+                                    <CheckCircle2 size={16} /> Confirm & Run ML Triage
                                 </button>
                             </div>
                         </motion.div>

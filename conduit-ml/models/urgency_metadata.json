@@ -1,0 +1,45 @@
+{
+  "feature_cols": [
+    "symptom_enc",
+    "age",
+    "severity",
+    "duration_hours",
+    "risk_diabetes",
+    "risk_hypertension",
+    "risk_heart_disease",
+    "risk_smoking",
+    "heart_rate",
+    "systolic_bp",
+    "temperature",
+    "age_group",
+    "risk_count",
+    "bp_category",
+    "hr_category",
+    "temp_category",
+    "shock_index",
+    "is_high_risk_elderly",
+    "vulnerability_score"
+  ],
+  "numerical_indices": [
+    1,
+    2,
+    3,
+    8,
+    9,
+    10,
+    16,
+    18
+  ],
+  "classes": [
+    "critical",
+    "high",
+    "low",
+    "moderate"
+  ],
+  "best_params": {
+    "max_depth": 10,
+    "min_samples_leaf": 2,
+    "min_samples_split": 5,
+    "n_estimators": 100
+  }
+}

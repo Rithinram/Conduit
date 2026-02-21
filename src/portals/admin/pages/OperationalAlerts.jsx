@@ -1,13 +1,49 @@
-import React from 'react';
-import { Bell, ShieldAlert, Zap, AlertTriangle, Info, Clock, CheckCircle2, MoreVertical, X } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Bell, ShieldAlert, Zap, AlertTriangle, Info, Clock, CheckCircle2, MoreVertical, X, RefreshCw, Navigation } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
+import { getSystemState, resetSystemState } from '../../../services/api';
 
 const OperationalAlerts = () => {
-    const alerts = [
-        { id: 1, type: 'danger', title: 'ER Intake Spike', msg: 'Central General ER intake exceeded threshold by 150% in last 15 mins.', time: '2m ago' },
-        { id: 2, type: 'warning', title: 'MRI Shortage', msg: 'Saints Memorial MRI Unit 1 failing. Diverting all scheduled scans.', time: '14m ago' },
-        { id: 3, type: 'primary', title: 'Staffing Update', msg: 'OPD Nursing Team redistribution successful at City Care.', time: '45m ago' },
+    const navigate = useNavigate();
+    const [systemState, setSystemState] = useState(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [acknowledged, setAcknowledged] = useState([]);
+
+    const fetchData = async () => {
+        const state = await getSystemState();
+        setSystemState(state);
+        setIsLoading(false);
+    };
+
+    useEffect(() => {
+        fetchData();
+    }, []);
+
+    const handleReset = async () => {
+        if (window.confirm('Are you sure you want to clear all operational alerts and stabilization protocols?')) {
+            await resetSystemState();
+            setAcknowledged([]);
+            fetchData();
+        }
+    };
+
+    const toggleAcknowledge = (id) => {
+        setAcknowledged(prev =>
+            prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+        );
+    };
+
+    if (isLoading) return <div>Monitoring Regional Nodes...</div>;
+
+    const baseAlerts = systemState?.activeGlobalAlert && systemState.activeGlobalAlert !== 'System Normal' ? [
+        { id: 'global-broadcast', type: systemState.globalAlertLevel === 'Critical' ? 'danger' : 'warning', title: 'GLOBAL BROADCAST', msg: systemState.activeGlobalAlert, time: 'Live' },
+        { id: 'stabilization-node', type: 'primary', title: 'Network Update', msg: 'Stabilization protocols in effect across all modules.', time: 'System' }
+    ] : [
+        { id: 'system-normal', type: 'primary', title: 'System Normal', msg: 'No critical operational anomalies detected in the last 4 hours.', time: 'Stable' }
     ];
+
+    const alerts = baseAlerts.filter(a => !acknowledged.includes(a.id));
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
@@ -16,7 +52,9 @@ const OperationalAlerts = () => {
                 <div style={{ display: 'flex', gap: 'var(--space-xl)', alignItems: 'center' }}>
                     <div style={{ position: 'relative' }}>
                         <Bell size={32} color="var(--primary)" />
-                        <div style={{ position: 'absolute', top: -4, right: -4, width: 16, height: 16, background: 'var(--danger)', borderRadius: '50%', border: '2px solid white' }} />
+                        {alerts.some(a => a.type === 'danger') && (
+                            <div style={{ position: 'absolute', top: -4, right: -4, width: 16, height: 16, background: 'var(--danger)', borderRadius: '50%', border: '2px solid white' }} />
+                        )}
                     </div>
                     <div>
                         <h2 style={{ margin: 0 }}>Operational Alerts</h2>
@@ -24,20 +62,22 @@ const OperationalAlerts = () => {
                     </div>
                 </div>
                 <div style={{ display: 'flex', gap: 'var(--space-md)' }}>
-                    <button className="btn glass">MUTE ALL</button>
-                    <button className="btn btn-primary">CLEAR HISTORY</button>
+                    <button onClick={fetchData} className="btn glass"><RefreshCw size={16} /></button>
+                    <button className="btn btn-primary" onClick={handleReset}>STABILIZE NETWORK</button>
                 </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 'var(--space-lg)' }}>
                 {/* Alerts Feed */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
-                    <AnimatePresence>
-                        {alerts.map((a) => (
+                    <AnimatePresence mode="popLayout">
+                        {alerts.length > 0 ? alerts.map((a) => (
                             <motion.div
                                 key={a.id}
+                                layout
                                 initial={{ x: -20, opacity: 0 }}
                                 animate={{ x: 0, opacity: 1 }}
+                                exit={{ x: 50, opacity: 0 }}
                                 className="card"
                                 style={{
                                     borderLeft: `6px solid var(--${a.type})`,
@@ -56,37 +96,66 @@ const OperationalAlerts = () => {
                                     </div>
                                     <p style={{ margin: '8px 0 0 0', fontSize: '0.9rem', color: 'var(--text-main)', lineHeight: 1.5 }}>{a.msg}</p>
                                     <div style={{ display: 'flex', gap: 'var(--space-md)', marginTop: 'var(--space-lg)' }}>
-                                        <button className="btn btn-primary" style={{ fontSize: '0.75rem', padding: '0.5rem 1rem' }}>TAKE ACTION</button>
-                                        <button className="btn glass" style={{ fontSize: '0.75rem', padding: '0.5rem 1rem' }}>ACKNOWLEDGE</button>
+                                        <button
+                                            className="btn btn-primary"
+                                            style={{ fontSize: '0.75rem', padding: '0.5rem 1rem', gap: '8px' }}
+                                            onClick={() => navigate('/admin/coordination')}
+                                        >
+                                            <Navigation size={14} /> RE-ROUTE COORDINATION
+                                        </button>
+                                        <button
+                                            className="btn glass"
+                                            style={{ fontSize: '0.75rem', padding: '0.5rem 1rem' }}
+                                            onClick={() => toggleAcknowledge(a.id)}
+                                        >
+                                            ACKNOWLEDGE
+                                        </button>
                                     </div>
                                 </div>
-                                <button className="btn glass" style={{ border: 'none', padding: '4px' }}><X size={16} /></button>
+                                <button
+                                    className="btn glass"
+                                    style={{ border: 'none', padding: '4px' }}
+                                    onClick={() => toggleAcknowledge(a.id)}
+                                >
+                                    <X size={16} />
+                                </button>
                             </motion.div>
-                        ))}
+                        )) : (
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                className="card"
+                                style={{ textAlign: 'center', padding: 'var(--space-xl)', background: 'var(--success-bg)', border: '1px dashed var(--success)' }}
+                            >
+                                <CheckCircle2 size={32} color="var(--success)" style={{ marginBottom: '8px' }} />
+                                <div style={{ fontWeight: 700, color: 'var(--success-dark)' }}>All Clear</div>
+                                <div style={{ fontSize: '0.8rem', opacity: 0.8 }}>No active alerts requiring attention.</div>
+                            </motion.div>
+                        )}
                     </AnimatePresence>
                 </div>
 
                 {/* Alert Stats */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
                     <div className="card">
-                        <h4>Response Performance</h4>
+                        <h4>Regional Stability Index</h4>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)', marginTop: 'var(--space-md)' }}>
                             <div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '4px' }}>
-                                    <span>Avg. Resolution Time</span>
-                                    <span style={{ fontWeight: 700 }}>4.2 mins</span>
+                                    <span>Resolution Efficiency</span>
+                                    <span style={{ fontWeight: 700 }}>92%</span>
                                 </div>
                                 <div style={{ height: '4px', background: 'var(--background)', borderRadius: '2px' }}>
-                                    <div style={{ width: '85%', height: '100%', background: 'var(--success)' }} />
+                                    <div style={{ width: '92%', height: '100%', background: 'var(--success)' }} />
                                 </div>
                             </div>
                             <div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '4px' }}>
-                                    <span>Critical Uptime</span>
-                                    <span style={{ fontWeight: 700 }}>99.98%</span>
+                                    <span>Network Latency</span>
+                                    <span style={{ fontWeight: 700 }}>42ms</span>
                                 </div>
                                 <div style={{ height: '4px', background: 'var(--background)', borderRadius: '2px' }}>
-                                    <div style={{ width: '99.98%', height: '100%', background: 'var(--primary)' }} />
+                                    <div style={{ width: '95%', height: '100%', background: 'var(--primary)' }} />
                                 </div>
                             </div>
                         </div>
@@ -95,13 +164,14 @@ const OperationalAlerts = () => {
                     <div className="card" style={{ background: 'var(--text-main)', color: 'white' }}>
                         <div style={{ display: 'flex', gap: 'var(--space-md)', alignItems: 'center', marginBottom: 'var(--space-md)' }}>
                             <Zap size={20} color="var(--warning)" />
-                            <h4 style={{ margin: 0 }}>Smart Alert Nudging</h4>
+                            <h4 style={{ margin: 0 }}>System Guard: {systemState?.globalAlertLevel || 'Optimal'}</h4>
                         </div>
                         <p style={{ fontSize: '0.8rem', opacity: 0.8 }}>
-                            Our AI is currently suppressing 12 redundant notifications to prevent operator fatigue. Showing only unique critical events.
+                            Redistribution Protocol: {systemState?.redistributionProtocolActive ? 'ACTIVE' : 'IDLE'}.
+                            Awaiting {alerts.length} acknowledgments.
                         </p>
                         <div className="card glass" style={{ border: 'none', background: 'rgba(255,255,255,0.05)', marginTop: 'var(--space-md)' }}>
-                            <div style={{ fontSize: '0.7rem', color: 'var(--success)', fontWeight: 700 }}>SYSTEM HEALTH: OPTIMAL</div>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--success)', fontWeight: 700 }}>TRUST SCORE: 98.4</div>
                         </div>
                     </div>
                 </div>

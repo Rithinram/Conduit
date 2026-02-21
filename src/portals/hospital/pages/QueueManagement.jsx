@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 import {
     Users, UserPlus, UserMinus, Clock, TrendingUp,
@@ -7,16 +7,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-
-const waitForecast = [
-    { time: '12:00', actual: 35, predicted: 35 },
-    { time: '13:00', actual: 42, predicted: 38 },
-    { time: '14:00', actual: 58, predicted: 55 },
-    { time: '15:00', actual: 85, predicted: 80 },
-    { time: '16:00', actual: null, predicted: 95 },
-    { time: '17:00', actual: null, predicted: 75 },
-    { time: '18:00', actual: null, predicted: 55 },
-];
+import { forecastLoad, isModelTrained } from '../../../../conduit-ml';
 
 const QueueManagement = () => {
     const navigate = useNavigate();
@@ -27,6 +18,51 @@ const QueueManagement = () => {
     const [showDivertDialog, setShowDivertDialog] = useState(false);
     const [relocationTarget, setRelocationTarget] = useState(null);
     const [nurseName, setNurseName] = useState('Nurse Sarah');
+
+    const [waitForecast, setWaitForecast] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    // ML-powered wait time forecast for the next 6 hours (Async)
+    useEffect(() => {
+        const fetchForecast = async () => {
+            setIsLoading(true);
+            try {
+                const now = new Date();
+                const startHour = now.getHours();
+                const day = now.getDay();
+                // If model is trained, use it, otherwise use fallback logic in forecastLoad
+                const data = await forecastLoad(startHour, day, 10, 6);
+                setWaitForecast(data.map(f => ({
+                    time: f.time,
+                    actual: f.actual || null, // Optional actual data if we had it
+                    predicted: f.predictedWaitTime
+                })));
+            } catch (err) {
+                console.error("Fetch forecast failed:", err);
+                // Fallback static data if ML fails
+                setWaitForecast([
+                    { time: '12:00', actual: 35, predicted: 35 },
+                    { time: '13:00', actual: 42, predicted: 38 },
+                    { time: '14:00', actual: 58, predicted: 55 },
+                    { time: '15:00', actual: 85, predicted: 80 },
+                    { time: '16:00', actual: null, predicted: 95 },
+                    { time: '17:00', actual: null, predicted: 75 },
+                    { time: '18:00', actual: null, predicted: 55 },
+                ]);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchForecast();
+    }, []);
+
+    // Detect if a surge is predicted
+    const peakEntry = useMemo(() => {
+        if (!waitForecast.length) return { time: '--:--', predicted: 0 };
+        return waitForecast.reduce((max, e) => e.predicted > max.predicted ? e : max, waitForecast[0]);
+    }, [waitForecast]);
+
+    const surgeExpected = peakEntry.predicted > 60;
 
     const handleRelocate = (dept) => {
         setRelocationTarget(dept);
@@ -68,7 +104,7 @@ const QueueManagement = () => {
                                 </span>
                             </div>
                         </div>
-                        <div className="badge badge-danger">PREDICTED SURGE: 16:00</div>
+                        {surgeExpected && <div className="badge badge-danger">PREDICTED SURGE: {peakEntry.time}</div>}
                     </div>
                     <div style={{ height: '300px', marginTop: 'var(--space-xl)' }}>
                         <ResponsiveContainer width="100%" height="100%">

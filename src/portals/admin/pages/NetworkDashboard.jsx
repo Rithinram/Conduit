@@ -1,42 +1,109 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Circle } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import { getHospitals, getSystemMetrics, getUrgencyColor } from '../../../services/api';
-import { Activity, Map as MapIcon, ShieldAlert, BarChart3, Filter, Settings, Bell, Zap, TrendingUp } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { getHospitals, getSystemMetrics, getUrgencyColor, broadcastAlert, getSystemState } from '../../../services/api';
+import { Activity, Map as MapIcon, ShieldAlert, BarChart3, Filter, Settings, Bell, Zap, TrendingUp, Users } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import L from 'leaflet';
+import { predictLoad, isModelTrained, getSurgeLevel, getSurgeColor } from '../../../../conduit-ml';
 
 const NetworkDashboard = () => {
     const [hospitals, setHospitals] = useState([]);
     const [systemMetrics, setSystemMetrics] = useState(null);
+    const [systemState, setSystemState] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [overrideAction, setOverrideAction] = useState(null);
+    const navigate = useNavigate();
 
     useEffect(() => {
         const fetchData = async () => {
-            setIsLoading(true);
-            const [hospitalData, metricsData] = await Promise.all([
+            const [hospitalData, metricsData, stateData] = await Promise.all([
                 getHospitals(),
-                getSystemMetrics()
+                getSystemMetrics(),
+                getSystemState()
             ]);
-            setHospitals(hospitalData);
+
+            // Enrich hospitals with ML predictions (Async)
+            const now = new Date();
+            const enriched = await Promise.all((hospitalData || []).map(async h => {
+                const pred = await predictLoad(now.getHours(), now.getDay(), Math.round((h.occupancy || 50) / 5));
+                const surgeLevel = getSurgeLevel(h.icuAvailability || h.occupancy || 50, h.erWaitTime || 0);
+                return {
+                    ...h,
+                    mlPredictedWait: pred.predictedWaitTime,
+                    mlSurgeLevel: surgeLevel
+                };
+            }));
+
+            setHospitals(enriched);
             setSystemMetrics(metricsData);
+            setSystemState(stateData);
             setIsLoading(false);
         };
+
         fetchData();
+        const interval = setInterval(fetchData, 5000); // Sync every 5 seconds
+        return () => clearInterval(interval);
     }, []);
 
-    if (isLoading || !systemMetrics) {
-        return (
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', flexDirection: 'column', gap: '20px' }}>
-                <Activity className="pulse-critical" size={48} color="var(--primary)" />
-                <div style={{ fontWeight: 800, color: 'var(--primary)' }}>LOADING NETWORK STATUS...</div>
-            </div>
-        );
-    }
+    const handleOverride = async (type) => {
+        setOverrideAction(type);
+
+        if (type === 'redistribute') {
+            // No specific alert, just redirect to the resource management
+            setTimeout(() => navigate('/admin/resources'), 1500);
+        } else if (type === 'triage') {
+            setTimeout(() => navigate('/admin/policies'), 1500);
+        } else if (type === 'alert') {
+            // Real Backend Call to set global alert
+            await broadcastAlert({
+                message: "RED-LEVEL PROTOCOL: Regional Network Divert in place.",
+                level: "Critical"
+            });
+            setTimeout(() => navigate('/admin/alerts'), 1500);
+        }
+
+        setTimeout(() => setOverrideAction(null), 3000);
+    };
+
+    if (isLoading || !systemMetrics) return <div>Synchronizing Regional Healthcare Network...</div>;
+
     return (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 'var(--space-lg)', height: 'calc(100vh - 180px)' }}>
             {/* City Map View */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
+                <AnimatePresence>
+                    {systemState?.redistributionProtocolActive && (
+                        <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="card"
+                            style={{
+                                background: 'rgba(34, 197, 94, 0.1)',
+                                border: '1px solid var(--success)',
+                                padding: '12px 20px',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                borderRadius: '12px',
+                                marginBottom: 'var(--space-md)'
+                            }}
+                        >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <div className="pulse-success" style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--success)' }} />
+                                <span style={{ fontWeight: 800, color: 'var(--success)', fontSize: '0.9rem', letterSpacing: '0.5px' }}>
+                                    ACTIVE REDISTRIBUTION PROTOCOL: REGIONAL NODES OPTIMIZING
+                                </span>
+                            </div>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--success)', fontWeight: 700 }}>
+                                LAST UPDATED: {new Date(systemState.lastUpdated).toLocaleTimeString()}
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
                 <div className="card" style={{ flex: 1, padding: 0, overflow: 'hidden', position: 'relative' }}>
                     <MapContainer center={[12.9716, 77.5946]} zoom={13} style={{ height: '100%', width: '100%' }}>
                         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
@@ -62,23 +129,25 @@ const NetworkDashboard = () => {
                                     <div className="tooltip-content" style={{ minWidth: '180px', padding: '10px' }}>
                                         <div style={{ fontSize: '0.65rem', fontWeight: 900, color: 'var(--text-muted)', marginBottom: '4px' }}>HOSPITAL NODE</div>
                                         <h4 style={{ margin: '0 0 8px 0', fontSize: '1.2rem', color: 'var(--primary)' }}>{h.name}</h4>
-                                        <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                                        <div style={{ display: 'flex', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
                                             <div style={{ background: 'var(--background)', padding: '4px 8px', borderRadius: '6px', fontSize: '0.75rem' }}>
                                                 Wait: <strong>{h.erWaitTime}m</strong>
                                             </div>
                                             <div style={{ background: 'var(--background)', padding: '4px 8px', borderRadius: '6px', fontSize: '0.75rem' }}>
                                                 ICU: <strong>{h.icuAvailability}%</strong>
                                             </div>
+                                            {h.mlPredictedWait != null && (
+                                                <div style={{ background: 'var(--primary-light)', padding: '4px 8px', borderRadius: '6px', fontSize: '0.75rem', color: 'var(--primary)' }}>
+                                                    ML Wait: <strong>{h.mlPredictedWait}m</strong>
+                                                </div>
+                                            )}
                                         </div>
-                                        <span className={`badge badge-${h.status === 'stable' ? 'success' : h.status === 'moderate' ? 'warning' : 'danger'}`} style={{ width: '100%', justifyContent: 'center' }}>
-                                            {h.status.toUpperCase()} STATUS
+                                        <span className={`badge badge-${h.mlSurgeLevel === 'CRITICAL' ? 'danger' : h.mlSurgeLevel === 'WATCH' ? 'warning' : h.status === 'stable' ? 'success' : h.status === 'moderate' ? 'warning' : 'danger'}`} style={{ width: '100%', justifyContent: 'center' }}>
+                                            {(h.mlSurgeLevel || h.status.toUpperCase())} STATUS
                                         </span>
                                     </div>
                                 </Popup>
                             </Marker>
-                        ))}
-                        {hospitals.filter(h => h.status === 'critical').map(h => (
-                            <Circle key={`c-${h.id}`} center={h.location} radius={1500} pathOptions={{ color: 'var(--danger)', fillColor: 'var(--danger)', fillOpacity: 0.1 }} />
                         ))}
                     </MapContainer>
 
@@ -102,14 +171,6 @@ const NetworkDashboard = () => {
                     <h4 style={{ margin: '0 0 var(--space-md) 0' }}>Network Health</h4>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>City Stress Index</span>
-                            <span style={{ fontWeight: 800, color: 'var(--warning)' }}>{systemMetrics.cityStress}%</span>
-                        </div>
-                        <div style={{ height: '6px', background: 'var(--background)', borderRadius: '3px', overflow: 'hidden' }}>
-                            <div style={{ width: `${systemMetrics.cityStress}%`, height: '100%', background: 'var(--warning)' }} />
-                        </div>
-
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Predictive Surge Prob.</span>
                             <span style={{ fontWeight: 800, color: 'var(--primary)' }}>{systemMetrics.predictiveSurgeProb}%</span>
                         </div>
@@ -119,13 +180,48 @@ const NetworkDashboard = () => {
                     </div>
                 </div>
 
-                <div className="card" style={{ background: 'var(--text-main)', color: 'white' }}>
-                    <h4 style={{ marginBottom: 'var(--space-md)', color: 'var(--primary-light)' }}>Admin Overrides</h4>
+                <div className="card" style={{ background: 'var(--text-main)', color: 'white', border: '1px solid rgba(255,255,255,0.1)' }}>
+                    <h4 style={{ marginBottom: 'var(--space-md)', color: 'var(--secondary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Settings size={18} /> Admin Overrides
+                    </h4>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
-                        <button className="btn glass" style={{ color: 'white', justifyContent: 'flex-start' }}><ShieldAlert size={16} /> Forced Redistribution</button>
-                        <button className="btn glass" style={{ color: 'white', justifyContent: 'flex-start' }}><Settings size={16} /> Adjust Triage Rules</button>
-                        <button className="btn glass" style={{ color: 'white', justifyContent: 'flex-start' }}><Bell size={16} /> Network-Wide Alert</button>
+                        <button
+                            className={`btn btn-glass-dark ${overrideAction === 'redistribute' ? 'pulse-alert' : ''}`}
+                            style={{ justifyContent: 'flex-start' }}
+                            onClick={() => handleOverride('redistribute')}
+                        >
+                            <ShieldAlert size={16} /> {overrideAction === 'redistribute' ? 'EXECUTING...' : 'Forced Redistribution'}
+                        </button>
+                        <button
+                            className={`btn btn-glass-dark ${overrideAction === 'triage' ? 'pulse-alert' : ''}`}
+                            style={{ justifyContent: 'flex-start' }}
+                            onClick={() => handleOverride('triage')}
+                        >
+                            <Settings size={16} /> {overrideAction === 'triage' ? 'ADJUSTING...' : 'Adjust Triage Rules'}
+                        </button>
+                        <button
+                            className={`btn btn-glass-dark ${overrideAction === 'alert' ? 'pulse-critical' : ''}`}
+                            style={{ justifyContent: 'flex-start' }}
+                            onClick={() => handleOverride('alert')}
+                        >
+                            <Bell size={16} /> {overrideAction === 'alert' ? 'DISPATCHING...' : 'Network-Wide Alert'}
+                        </button>
                     </div>
+
+                    <AnimatePresence>
+                        {overrideAction && (
+                            <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                exit={{ opacity: 0, height: 0 }}
+                                style={{ marginTop: 'var(--space-md)', fontSize: '0.75rem', color: 'var(--secondary)', fontWeight: 600, textAlign: 'center' }}
+                            >
+                                <motion.span animate={{ opacity: [1, 0.5, 1] }} transition={{ repeat: Infinity }}>
+                                    PROTOCOL SECURED: Updating regional nodes...
+                                </motion.span>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
                 </div>
 
                 <div className="card glass" style={{ border: 'none', background: 'var(--primary-light)', color: 'var(--primary)' }}>

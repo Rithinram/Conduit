@@ -1,0 +1,9 @@
+{
+  "feature_cols": [
+    "ventilators_avail",
+    "staff_on_duty",
+    "oxygen_level",
+    "patient_acuity_avg",
+    "admission_rate"
+  ]
+}

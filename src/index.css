@@ -149,6 +149,25 @@ h6 {
   box-shadow: 0 8px 25px rgba(42, 188, 167, 0.35);
 }
 
+.btn-glass-dark {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white !important;
+  transition: all 0.3s ease;
+}
+
+.btn-glass-dark:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: translateY(-2px);
+}
+
+.btn-glass-dark:active {
+  transform: translateY(0);
+}
+
 .elevation-hover {
   transition: all 0.3s ease;
 }

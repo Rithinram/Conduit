@@ -1,0 +1,14 @@
+{
+  "feature_cols": [
+    "stress_index",
+    "region_load",
+    "local_icu"
+  ],
+  "classes": [
+    "City General",
+    "Memorial",
+    "Mercy Health",
+    "Regional Trauma",
+    "St. Jude"
+  ]
+}

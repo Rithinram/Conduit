@@ -1,8 +1,10 @@
 import { ShieldAlert, Zap, Calendar, PhoneCall, ArrowRight, CornerUpRight, Info, AlertTriangle, Users, Activity, ExternalLink, ShieldCheck, Clock, CheckCircle2, X, Video, Star, Award, Mic, MicOff, VideoOff, PhoneOff, MessageSquare, Monitor } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSurgeActions } from '../../../context/SurgeActionsContext';
+import { getSystemMetrics, getHospitals } from '../../../services/api';
+import { getSurgeLevel, getSurgeColor, computeMovingAverage } from '../../../../conduit-ml';
 
 // Mock data for Urgent Regional Surge
 const mockMetrics = {
@@ -29,7 +31,7 @@ const availableDoctors = [
 
 const SurgePage = () => {
     const navigate = useNavigate();
-    const { addRescheduledAppointment } = useSurgeActions();
+    const { addRescheduledAppointment } = useSurgeActions() || {};
     const [showDeferralPopup, setShowDeferralPopup] = useState(false);
     const [showVideoClinic, setShowVideoClinic] = useState(false);
     const [showVideoCall, setShowVideoCall] = useState(false);
@@ -39,6 +41,10 @@ const SurgePage = () => {
     const [callTime, setCallTime] = useState(0);
     const [isMuted, setIsMuted] = useState(false);
     const [isCamOff, setIsCamOff] = useState(false);
+
+    const [systemMetrics, setSystemMetrics] = useState(null);
+    const [hospitals, setHospitals] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
 
     const handleDeferral = () => {
         setShowDeferralPopup(true);
@@ -51,16 +57,18 @@ const SurgePage = () => {
         const tomorrow = new Date();
         tomorrow.setDate(tomorrow.getDate() + 2);
         const dateStr = tomorrow.toISOString().split('T')[0];
-        addRescheduledAppointment({
-            id: Date.now(),
-            hospital: 'City Central General',
-            doctor: 'Dr. Sarah Wilson',
-            date: dateStr,
-            time: '14:00',
-            timestamp: new Date().toLocaleString(),
-            type: 'rescheduled',
-            reason: 'Surge Protocol Deferral — +850 CareCredit earned'
-        });
+        if (addRescheduledAppointment) {
+            addRescheduledAppointment({
+                id: Date.now(),
+                hospital: 'City Central General',
+                doctor: 'Dr. Sarah Wilson',
+                date: dateStr,
+                time: '14:00',
+                timestamp: new Date().toLocaleString(),
+                type: 'rescheduled',
+                reason: 'Surge Protocol Deferral — +850 CareCredit earned'
+            });
+        }
 
         // Keep popup open for 2s then close
         setTimeout(() => setShowDeferralPopup(false), 2500);
@@ -104,6 +112,42 @@ const SurgePage = () => {
         navigate('/user/emergency');
     };
 
+    useEffect(() => {
+        const fetchData = async () => {
+            setIsLoading(true);
+            try {
+                const [metrics, hosps] = await Promise.all([getSystemMetrics(), getHospitals()]);
+                setSystemMetrics(metrics);
+                setHospitals(hosps);
+            } catch (err) {
+                console.error("Fetch data failed:", err);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchData();
+    }, []);
+
+    // Compute network-wide surge level from hospital data
+    const networkSurge = useMemo(() => {
+        if (!hospitals.length) return { level: 'STABLE', avgIcu: 0, avgWait: 0 };
+        const avgIcu = Math.round(hospitals.reduce((s, h) => s + (h.icuAvailability || h.occupancy || 50), 0) / hospitals.length);
+        const avgWait = Math.round(hospitals.reduce((s, h) => s + (h.erWaitTime || 0), 0) / hospitals.length);
+        const admissionRates = hospitals.map(h => h.occupancy || 50);
+        const movAvg = computeMovingAverage(admissionRates);
+        const level = getSurgeLevel(avgIcu, avgWait, avgIcu, movAvg);
+        return { level, avgIcu, avgWait };
+    }, [hospitals]);
+
+    if (isLoading || !systemMetrics) {
+        return (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '400px', flexDirection: 'column', gap: '20px' }}>
+                <Zap className="pulse-alert" size={48} color="var(--warning)" />
+                <div style={{ fontWeight: 800, color: 'var(--primary)', letterSpacing: '2px' }}>CALIBRATING REGIONAL FEED...</div>
+            </div>
+        );
+    }
+
     return (
         <div style={{ maxWidth: '1100px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 'var(--space-xl)' }}>
 
@@ -114,7 +158,7 @@ const SurgePage = () => {
                 className="card"
                 style={{
                     background: 'linear-gradient(135deg, #E63946 0%, #7f1d1d 100%)',
-                    color: 'white',
+                    color: white,
                     padding: 'var(--space-xxl) var(--space-xl)',
                     borderRadius: 'var(--radius-xl)',
                     border: 'none',
@@ -137,26 +181,28 @@ const SurgePage = () => {
                         <ShieldAlert size={64} />
                     </div>
 
-                    <div style={{ flex: 1 }}>
+                    <div style={{ flex: 1, zIndex: 1 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
                             <span style={{ background: 'rgba(255,255,255,0.2)', padding: '4px 12px', borderRadius: '10px', fontSize: '0.8rem', fontWeight: 900, letterSpacing: '1px' }}>
-                                LEVEL 4 PROTOCOL
+                                {networkSurge.level === 'CRITICAL' ? 'LEVEL 4 PROTOCOL' : networkSurge.level === 'WATCH' ? 'LEVEL 2 WATCH' : 'LEVEL 1 STABLE'}
                             </span>
                             <div style={{ display: 'flex', gap: '4px' }}>
                                 {[1, 2, 3, 4].map(i => <div key={i} style={{ width: 12, height: 4, background: 'white', borderRadius: 2 }} />)}
                             </div>
                         </div>
-                        <h1 style={{ fontSize: '3rem', fontWeight: 900, margin: 0, letterSpacing: '-2px', lineHeight: 1 }}>URGENT REGIONAL SURGE</h1>
-                        <p style={{ fontSize: '1.1rem', opacity: 0.9, marginTop: '12px', fontWeight: 500, maxWidth: '600px', margin: '12px 0 0 0' }}>
+                        <h1 style={{ fontSize: '3rem', fontWeight: 900, margin: 0, letterSpacing: '-2px', lineHeight: 1 }}>
+                            {networkSurge.level === 'CRITICAL' ? 'URGENT REGIONAL SURGE' : networkSurge.level === 'WATCH' ? 'ELEVATED LOAD DETECTED' : 'NETWORK OPERATING NORMALLY'}
+                        </h1>
+                        <p style={{ fontSize: '1.2rem', opacity: 0.9, marginTop: '12px', fontWeight: 500, maxWidth: '600px' }}>
                             System load balancing active. Voluntary intake diversion is recommended to preserve critical ICU capacity.
                         </p>
                     </div>
 
-                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{ textAlign: 'right', zIndex: 1 }}>
                         <div style={{ fontSize: '0.85rem', fontWeight: 900, opacity: 0.7, letterSpacing: '2px' }}>NETWORK OCCUPANCY</div>
-                        <div style={{ fontSize: '4rem', fontWeight: 900, lineHeight: 1 }}>{mockMetrics.cityStress}<span style={{ fontSize: '1.5rem', opacity: 0.6 }}>%</span></div>
+                        <div style={{ fontSize: '4rem', fontWeight: 900, lineHeight: 1 }}>{systemMetrics.cityStress}<span style={{ fontSize: '1.5rem', opacity: 0.6 }}>%</span></div>
                         <div style={{ background: 'rgba(0,0,0,0.2)', padding: '6px 12px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 800, marginTop: '10px' }}>
-                            CRITICAL THRESHOLD
+                            {networkSurge.level === 'CRITICAL' ? 'CRITICAL THRESHOLD' : networkSurge.level === 'WATCH' ? 'APPROACHING THRESHOLD' : 'WITHIN NORMAL RANGE'}
                         </div>
                     </div>
                 </div>
@@ -324,7 +370,7 @@ const SurgePage = () => {
                     gap: 'var(--space-xxl)',
                     padding: 'var(--space-xl)',
                     background: 'var(--primary)',
-                    color: 'white',
+                    color: white,
                     border: 'none',
                     borderRadius: 'var(--radius-xl)',
                     boxShadow: '0 20px 50px rgba(29, 78, 137, 0.2)'
@@ -335,7 +381,7 @@ const SurgePage = () => {
                         <ShieldCheck size={18} color="var(--secondary)" />
                         <span style={{ fontSize: '0.75rem', fontWeight: 900, letterSpacing: '1px', opacity: 0.8 }}>PREDICTIVE ROUTER ACTIVE</span>
                     </div>
-                    <h3 style={{ fontSize: '2rem', margin: '0 0 12px 0', color: 'white', fontWeight: 900, letterSpacing: '-1px' }}>
+                    <h3 style={{ fontSize: '2rem', margin: '0 0 12px 0', color: white, fontWeight: 900, letterSpacing: '-1px' }}>
                         Automated Facility Redistribution
                     </h3>
                     <p style={{ margin: 0, fontSize: '1rem', opacity: 0.9, lineHeight: 1.6 }}>
@@ -409,7 +455,7 @@ const SurgePage = () => {
                             exit={{ scale: 0.85, y: 30 }}
                             onClick={(e) => e.stopPropagation()}
                             style={{
-                                background: 'white',
+                                background: white,
                                 borderRadius: '24px',
                                 padding: 'var(--space-xl)',
                                 width: '100%',
@@ -431,7 +477,7 @@ const SurgePage = () => {
                                         <button
                                             onClick={() => setShowDeferralPopup(false)}
                                             className="btn glass"
-                                            style={{ flex: 1, padding: '14px', borderRadius: '14px', fontWeight: 700, fontSize: '0.85rem', background: 'white', border: '1px solid var(--surface-border)' }}
+                                            style={{ flex: 1, padding: '14px', borderRadius: '14px', fontWeight: 700, fontSize: '0.85rem', background: white, border: '1px solid var(--surface-border)' }}
                                         >
                                             CANCEL
                                         </button>
@@ -494,7 +540,7 @@ const SurgePage = () => {
                             exit={{ scale: 0.85, y: 30 }}
                             onClick={(e) => e.stopPropagation()}
                             style={{
-                                background: 'white',
+                                background: white,
                                 borderRadius: '24px',
                                 padding: 'var(--space-xl)',
                                 width: '100%',
@@ -613,7 +659,7 @@ const SurgePage = () => {
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', background: 'rgba(0,0,0,0.3)' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                 <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#10b981', boxShadow: '0 0 8px #10b981' }} />
-                                <span style={{ color: 'white', fontSize: '0.9rem', fontWeight: 700 }}>CONDUIT Virtual Clinic — Live Session</span>
+                                <span style={{ color: white, fontSize: '0.9rem', fontWeight: 700 }}>CONDUIT Virtual Clinic — Live Session</span>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                                 <span style={{ color: '#ef4444', fontWeight: 800, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -653,7 +699,7 @@ const SurgePage = () => {
                                 >
                                     <Users size={64} color="white" style={{ opacity: 0.9 }} />
                                 </motion.div>
-                                <div style={{ color: 'white', fontSize: '1.4rem', fontWeight: 800 }}>{selectedDoctor.name}</div>
+                                <div style={{ color: white, fontSize: '1.4rem', fontWeight: 800 }}>{selectedDoctor.name}</div>
                                 <div style={{ color: '#94a3b8', fontSize: '0.9rem', marginTop: '4px' }}>{selectedDoctor.specialty}</div>
                                 <motion.div
                                     animate={{ opacity: [0.5, 1, 0.5] }}
@@ -733,40 +779,30 @@ const SurgePage = () => {
                             <button
                                 onClick={endCall}
                                 style={{
-                                    width: '64px', height: '52px', borderRadius: '30px',
+                                    width: '64px', height: '64px', borderRadius: '20px',
                                     background: '#ef4444',
                                     border: 'none', cursor: 'pointer',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    boxShadow: '0 4px 15px rgba(239, 68, 68, 0.4)',
+                                    boxShadow: '0 8px 20px rgba(239, 68, 68, 0.3)',
                                     transition: 'all 0.2s'
                                 }}
                             >
-                                <PhoneOff size={22} color="white" />
-                            </button>
-                            <button
-                                style={{
-                                    width: '52px', height: '52px', borderRadius: '50%',
-                                    background: 'rgba(255,255,255,0.15)',
-                                    border: 'none', cursor: 'pointer',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center'
-                                }}
-                            >
-                                <MessageSquare size={22} color="white" />
-                            </button>
-                            <button
-                                style={{
-                                    width: '52px', height: '52px', borderRadius: '50%',
-                                    background: 'rgba(255,255,255,0.15)',
-                                    border: 'none', cursor: 'pointer',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center'
-                                }}
-                            >
-                                <Monitor size={22} color="white" />
+                                <PhoneOff size={28} color="white" />
                             </button>
                         </div>
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            <style>{`
+                .pulse-alert {
+                    animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+                }
+                @keyframes pulse-ring {
+                    0%, 100% { opacity: 1; transform: scale(1); }
+                    50% { opacity: 0.8; transform: scale(1.05); }
+                }
+            `}</style>
         </div>
     );
 };

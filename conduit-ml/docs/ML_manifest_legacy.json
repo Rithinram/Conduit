@@ -1,0 +1,83 @@
+{
+  "model_implementation_plan": {
+    "overview": "Three reusable intelligence engines power all portals. Each is lightweight, explainable, and built with JavaScript libraries.",
+    "models": [
+      {
+        "name": "Urgency Classification",
+        "purpose": "Assign urgency level (Low/Moderate/High/Critical) to a patient based on symptoms, age, severity, and risk factors.",
+        "approach": "Rule-based scoring with optional tiny logistic regression (trained on synthetic data).",
+        "inputs": [
+          { "name": "condition", "type": "string", "description": "Mapped to base score: cardiac=95, stroke=98, fracture=60, fever=30, cough=20, default=50" },
+          { "name": "age", "type": "number", "description": "Patient age in years" },
+          { "name": "severity", "type": "number", "description": "1-5 scale (patient-reported or triage)" },
+          { "name": "risk_factors", "type": "object", "optional": true, "description": "Boolean flags like diabetic, hypertensive" }
+        ],
+        "outputs": [
+          { "name": "urgencyScore", "type": "number", "description": "0-100 score" },
+          { "name": "urgencyLevel", "type": "string", "description": "critical / moderate / low" }
+        ],
+        "logic": "score = baseScore[condition] + (age > 60 ? 10 : 0) + (severity > 3 ? 15 : 0); if (score >= 80) level = 'critical'; else if (score >= 50) level = 'moderate'; else level = 'low';",
+        "integration": [
+          "User Portal: Guided Care decision (maps urgency to home/clinic/hospital)",
+          "Hospital Portal: Smart Triage (displays urgency in patient list, prioritizes)",
+          "Admin Portal: Policy simulation (what-if urgency threshold changes)"
+        ],
+        "dataSources": ["patients collection"]
+      },
+      {
+        "name": "Load Prediction",
+        "purpose": "Predict ER wait time and ICU occupancy for the next hour, used for hospital recommendations and queue management.",
+        "approach": "Multivariate linear regression trained on historical load data (loadHistory collection).",
+        "inputs": [
+          { "name": "hour", "type": "number", "description": "0-23" },
+          { "name": "dayOfWeek", "type": "number", "description": "0-6 (Sunday=0)" },
+          { "name": "queueLength", "type": "number", "description": "Current number waiting" }
+        ],
+        "outputs": [
+          { "name": "predictedWaitTime", "type": "number", "description": "Minutes" },
+          { "name": "predictedIcuOccupancy", "type": "number", "description": "Percentage" }
+        ],
+        "training": "Uses 200+ synthetic records from loadHistory. Model trained once on app startup using ml-regression-multivariate-linear.",
+        "integration": [
+          "User Portal: Load-aware hospital selector (sorts by predicted wait)",
+          "User Portal: Smart Time Recommendation (best time to visit)",
+          "Hospital Portal: Predictive Queue Management (displays future load)",
+          "Admin Portal: Network Operations Dashboard (aggregated load forecasts)"
+        ],
+        "dataSources": ["loadHistory collection", "current queue from hospitals/patients"]
+      },
+      {
+        "name": "Surge Detection",
+        "purpose": "Detect when a hospital or network is entering surge conditions and set status (STABLE/WATCH/CRITICAL).",
+        "approach": "Rule-based thresholds combined with moving averages.",
+        "inputs": [
+          { "name": "icuOccupancy", "type": "number", "description": "Percentage" },
+          { "name": "erWait", "type": "number", "description": "Minutes" },
+          { "name": "admissionRate", "type": "number", "description": "Patients/hour (computed from recent inflow)" },
+          { "name": "movingAvgAdmission", "type": "number", "description": "6‑hour moving average of admission rate" }
+        ],
+        "outputs": [
+          { "name": "surgeLevel", "type": "string", "description": "CRITICAL / WATCH / STABLE" }
+        ],
+        "logic": "if (icuOccupancy > 85 || erWait > 45) return 'CRITICAL'; else if (admissionRate > movingAvgAdmission * 1.5) return 'WATCH'; else return 'STABLE';",
+        "integration": [
+          "User Portal: Surge banner (global status)",
+          "Hospital Portal: Surge Management page (local status + recommendations)",
+          "Admin Portal: Surge Command Center (network-wide status map)"
+        ],
+        "dataSources": ["hospitals collection", "patients collection (for admission rate)"]
+      }
+    ],
+    "principles": [
+      "Reusability: One model powers multiple features across all three portals.",
+      "Explainability: Rules and linear regression are transparent; no black boxes.",
+      "Lightweight: Models run in the browser; no server-side ML needed.",
+      "Extensibility: Can be swapped with more advanced models later without changing architecture."
+    ],
+    "fileStructure": {
+      "src/lib/urgencyModel.js": "exports getUrgencyScore, getUrgencyLevel",
+      "src/lib/loadModel.js": "exports trainLoadModel, predictLoad",
+      "src/lib/surgeLogic.js": "exports getSurgeLevel, computeMovingAverage"
+    }
+  }
+}

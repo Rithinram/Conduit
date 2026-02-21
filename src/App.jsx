@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import PortalLayout from './components/PortalLayout';
 import * as UserPages from './portals/user/Pages';
 import * as HospitalPages from './portals/hospital/Pages';
 import * as AdminPages from './portals/admin/Pages';
 import LandingPage from './portals/LandingPage';
+import Login from './portals/Login';
+import { trainLoadModel, loadHistory } from '../conduit-ml';
 import {
   AlertOctagon,
   Search,
@@ -62,9 +64,15 @@ const adminMenu = [
 ];
 
 function App() {
+  // Train the Load Prediction model on app startup
+  useEffect(() => {
+    trainLoadModel(loadHistory);
+  }, []);
+
   return (
     <Routes>
       <Route path="/" element={<LandingPage />} />
+      <Route path="/login" element={<Login />} />
 
       {/* User Portal */}
       <Route path="/user" element={<PortalLayout portalName="USER" menuItems={userMenu} />}>

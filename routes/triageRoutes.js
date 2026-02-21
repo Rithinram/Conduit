@@ -1,35 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const Patient = require("../models/Patient");
-
-// Helper: Calculate Smart Triage Score (0-100)
-const calculateSmartScore = (patient) => {
-    let score = 0;
-    const { vitals, age, symptoms } = patient;
-
-    if (!vitals) return 50; // Default middle ground
-
-    // 1. Oxygen Saturation (Critical Factor)
-    if (vitals.oxygenLevel < 90) score += 40;
-    else if (vitals.oxygenLevel < 94) score += 20;
-
-    // 2. Heart Rate (Tachycardia/Bradycardia)
-    if (vitals.heartRate > 120 || vitals.heartRate < 50) score += 15;
-    else if (vitals.heartRate > 100) score += 5;
-
-    // 3. Temperature (High Fever)
-    if (vitals.temperature > 103) score += 10;
-    else if (vitals.temperature > 100.4) score += 5;
-
-    // 4. Age Factor (Vulnerable groups)
-    if (age > 70 || age < 5) score += 10;
-
-    // 5. Symptom Severity
-    if (symptoms?.includes("Chest Pain")) score += 25;
-    if (symptoms?.includes("Shortness of Breath")) score += 20;
-
-    return Math.min(100, score);
-};
+const { runInference } = require("./mlRoutes");
 
 // GET triage queue for a specific hospital
 router.get("/queue/:hospitalId", async (req, res) => {
@@ -55,18 +27,29 @@ router.post("/update-vitals/:patientId", async (req, res) => {
         if (vitals) patient.vitals = { ...patient.vitals, ...vitals };
         if (symptoms) patient.symptoms = symptoms;
 
-        // Recalculate AI Score
-        patient.smartScore = calculateSmartScore(patient);
+        // Run ML Inference for Urgency
+        const payload = {
+            symptom: patient.symptoms?.[0] || 'fever',
+            age: patient.age || 35,
+            severity: 2, // Default median severity
+            heart_rate: patient.vitals?.heartRate || 75,
+            systolic_bp: patient.vitals?.bloodPressure ? parseInt(patient.vitals.bloodPressure.split('/')[0]) : 120,
+            temperature: patient.vitals?.temperature || 37
+        };
 
-        // Update Urgency Level based on score
-        if (patient.smartScore > 80) patient.urgencyLevel = "Critical";
-        else if (patient.smartScore > 50) patient.urgencyLevel = "High";
-        else if (patient.smartScore > 30) patient.urgencyLevel = "Moderate";
-        else patient.urgencyLevel = "Low";
+        const result = await runInference('urgency', payload);
+
+        if (result) {
+            patient.urgencyLevel = result.urgency_level.charAt(0).toUpperCase() + result.urgency_level.slice(1);
+            // Map level to score for backend consistency
+            const scoreMap = { 'critical': 95, 'high': 75, 'moderate': 50, 'low': 25 };
+            patient.smartScore = scoreMap[result.urgency_level] || 50;
+        }
 
         await patient.save();
         res.json({ success: true, patient });
     } catch (err) {
+        console.error("[Triage-ML] Update failed:", err);
         res.status(400).json({ message: err.message });
     }
 });

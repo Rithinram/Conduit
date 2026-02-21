@@ -9,7 +9,7 @@
     "maps": "react-leaflet + leaflet",
     "backend": "PocketBase",
     "ml_libraries": "ml-regression, ml-logistic-regression", 
-    "hosting": "Vercel (frontend) + Railway (PocketBase)" //Not necessary for now
+    "hosting": "Vercel (frontend) + Railway (PocketBase)" 
   },
   "phases": [
     {

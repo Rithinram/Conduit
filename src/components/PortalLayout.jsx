@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QueueNotificationProvider, useQueueNotification } from '../context/QueueNotificationContext';
 import { SurgeActionsProvider } from '../context/SurgeActionsContext';
+import { getSystemState } from '../services/api';
 import {
     Activity,
     Bell,
@@ -17,37 +18,12 @@ import {
     Zap,
     HeartPulse,
     BellRing,
-    X as XIcon
+    X as XIcon,
+    AlertTriangle
 } from 'lucide-react';
 
 const PortalLayout = ({ portalName, menuItems }) => {
-    const location = useLocation();
-    const navigate = useNavigate();
-    const [isSidebarHovered, setIsSidebarHovered] = useState(false);
-    const [showNotifications, setShowNotifications] = useState(false);
-
-    const getPortalConfig = () => {
-        if (portalName === 'USER') return {
-            primary: '#1D4E89',
-            light: '#e8eff6',
-            accent: 'var(--secondary)',
-            motif: 'Patient Care Excellence'
-        };
-        if (portalName === 'HOSPITAL') return {
-            primary: '#2ABCA7',
-            light: '#eaf8f6',
-            accent: 'var(--primary)',
-            motif: 'Clinical Operational Control'
-        };
-        return {
-            primary: '#5e6ad2',
-            light: '#f0f1fa',
-            accent: 'var(--secondary)',
-            motif: 'Regional Strategic Oversight'
-        };
-    };
-
-    const config = getPortalConfig();
+    const config = getPortalConfig(portalName);
 
     const content = (
         <PortalLayoutInner portalName={portalName} menuItems={menuItems} config={config} />
@@ -67,14 +43,56 @@ const PortalLayout = ({ portalName, menuItems }) => {
     return content;
 };
 
+const getPortalConfig = (portalName) => {
+    if (portalName === 'USER') return {
+        primary: '#1D4E89',
+        light: '#e8eff6',
+        accent: 'var(--secondary)',
+        motif: 'Patient Care Excellence'
+    };
+    if (portalName === 'HOSPITAL') return {
+        primary: '#2ABCA7',
+        light: '#eaf8f6',
+        accent: 'var(--primary)',
+        motif: 'Clinical Operational Control'
+    };
+    return {
+        primary: '#5e6ad2',
+        light: '#f0f1fa',
+        accent: 'var(--secondary)',
+        motif: 'Regional Strategic Oversight'
+    };
+};
+
 const PortalLayoutInner = ({ portalName, menuItems, config }) => {
     const location = useLocation();
     const navigate = useNavigate();
     const [isSidebarHovered, setIsSidebarHovered] = useState(false);
     const [showNotifications, setShowNotifications] = useState(false);
+    const [systemState, setSystemState] = useState(null);
 
     // Access queue notification context (only available in USER portal)
     const queueCtx = portalName === 'USER' ? useQueueNotification() : null;
+
+    useEffect(() => {
+        const fetchState = async () => {
+            const state = await getSystemState();
+            setSystemState(state);
+        };
+        fetchState();
+        const interval = setInterval(fetchState, 30000);
+        return () => clearInterval(interval);
+    }, []);
+
+    const getUser = () => {
+        try {
+            const user = localStorage.getItem('user');
+            return user ? JSON.parse(user) : null;
+        } catch (e) {
+            return null;
+        }
+    };
+    const user = getUser();
 
     return (
         <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: 'var(--background)' }}>
@@ -212,7 +230,39 @@ const PortalLayoutInner = ({ portalName, menuItems, config }) => {
                         <Home size={18} /> Exit to Pulse Map
                     </button>
 
-
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        padding: '12px',
+                        borderRadius: 'var(--radius-md)',
+                        background: 'white',
+                        border: '1px solid var(--surface-border)'
+                    }}>
+                        <div style={{
+                            width: 44,
+                            height: 44,
+                            borderRadius: '12px',
+                            background: `${config.primary}10`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                        }}>
+                            <UserIcon size={22} color={config.primary} />
+                        </div>
+                        <div style={{ flex: 1, overflow: 'hidden' }}>
+                            <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-main)', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+                                {user?.name || (portalName === 'USER' ? 'Guest Patient' : 'Unknown User')}
+                            </div>
+                            <div style={{ fontSize: '0.7rem', color: config.primary, fontWeight: 900 }}>
+                                {user?.role?.toUpperCase() || (portalName === 'USER' ? 'ANONYMOUS' : 'NO SESSION')}
+                            </div>
+                        </div>
+                        <LogOut size={16} color="var(--text-muted)" style={{ cursor: 'pointer' }} onClick={() => {
+                            localStorage.removeItem('user');
+                            navigate('/');
+                        }} />
+                    </div>
                 </div>
             </motion.aside>
 
@@ -331,17 +381,23 @@ const PortalLayoutInner = ({ portalName, menuItems, config }) => {
                             whileHover={{ scale: 1.05 }}
                             className="btn pulse-alert"
                             style={{
-                                background: portalName === 'USER' ? 'var(--danger)' : config.primary,
+                                background: systemState?.globalAlertLevel === 'Critical' ? 'var(--danger)' :
+                                    systemState?.redistributionProtocolActive ? 'var(--warning)' :
+                                        portalName === 'USER' ? 'var(--danger)' : config.primary,
                                 color: 'white',
                                 padding: '12px 24px',
                                 border: 'none',
                                 borderRadius: '14px',
                                 fontSize: '0.85rem',
                                 fontWeight: 800,
-                                boxShadow: `0 8px 25px ${portalName === 'USER' ? 'var(--danger)' : config.primary}30`
+                                boxShadow: `0 8px 25px ${systemState?.globalAlertLevel === 'Critical' ? 'var(--danger)' :
+                                    systemState?.redistributionProtocolActive ? 'var(--warning)' :
+                                        portalName === 'USER' ? 'var(--danger)' : config.primary}30`
                             }}
                         >
-                            {portalName === 'USER' ? <Zap size={18} /> : <Activity size={18} />} SURGE PROTOCOL: STABLE
+                            {systemState?.globalAlertLevel === 'Critical' ? <AlertTriangle size={18} /> :
+                                portalName === 'USER' ? <Zap size={18} /> : <Activity size={18} />}
+                            SURGE PROTOCOL: {systemState?.globalAlertLevel?.toUpperCase() || 'STABLE'}
                         </motion.button>
                     </div>
                 </header>

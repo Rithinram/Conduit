@@ -1,16 +1,55 @@
-# React + Vite
+# Conduit — Advanced Hospital Coordination 🏥
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Conduit is a next-generation hospital coordination platform designed to stabilize regional healthcare networks through reusable intelligence.
 
-Currently, two official plugins are available:
+## 🧠 Triple Intelligence Engines
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+The core of Conduit is powered by three specialized ML/Logic engines:
 
-## React Compiler
+### 1. Urgency Classification ([urgencyModel.js](src/lib/urgencyModel.js))
+- **Purpose:** Automates patient prioritization.
+- **Approach:** Rule-based scoring with weighted condition parsing (e.g., cardiac: 95, fever: 30) plus age and severity modifiers.
+- **Integration:** Drives "Smart Triage" for hospitals and "Guided Care" for patients.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### 2. Load Prediction ([loadModel.js](src/lib/loadModel.js))
+- **Purpose:** Forecasts ER wait times and ICU occupancy.
+- **Approach:** Multivariate Linear Regression (trained on 200+ historical records) that accounts for hour of day, day of week, and current queue length.
+- **Integration:** Powers the "Smart Time Recommendation" and "Load-aware Hospital Selector".
 
-## Expanding the ESLint configuration
+### 3. Surge Detection ([surgeLogic.js](src/lib/surgeLogic.js))
+- **Purpose:** Early warning system for network saturation.
+- **Approach:** Real-time thresholding (ICU > 85%, Wait > 45m) combined with 6-hour moving average spikes for predictive alerts.
+- **Integration:** Triggers "Regional Redistribution Protocol" in the Admin/Surge Command center.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## 🛠️ Tech Stack
+
+- **Frontend:** React + Vite (High-performance rendering)
+- **Styling:** Premium Custom CSS (Glassmorphism, High-contrast accessibility)
+- **Animations:** Framer Motion (Fluid transitions and micro-interactions)
+- **Backend:** Express + MongoDB (Robust data persistence)
+- **Intelligence:** `ml-regression`, `ml-logistic-regression`
+
+---
+
+## 🚀 Key Portals
+
+### 👤 User Portal
+- **Emergency Routing:** SOS feature with instant map routing to the facility with the lowest predicted load.
+- **Hospital Selector:** Compare facilities using real-time ML-predicted wait times.
+- **Smart Appointment:** AI-driven symptom analysis and wait-time forecasting.
+
+### 🏥 Hospital Portal
+- **Smart Triage:** Automated sorting of incoming patients by clinical urgency.
+- **Queue Management:** ML-forecasted wait times to assist in staff scheduling.
+- **Surge Management:** Local command center for activating surge protocols.
+
+### 🛡️ Admin Portal
+- **Network Dashboard:** Real-time map of all facility nodes with pulse indicators for health.
+- **Surge Command:** Active redistribution engine that proposes patient transfers to balance network load.
+- **Policy Engine:** "What-if" simulator to adjust urgency thresholds across the network.
+
+---
+
+## 🤝 Team Collaboration
+
+For the team of 3 developers, please refer to the [CONTRIBUTING.md](CONTRIBUTING.md) for the parallel development workflow, branching strategy, and ML audit requirements.

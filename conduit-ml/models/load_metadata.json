@@ -1,0 +1,32 @@
+{
+  "feature_cols": [
+    "hour",
+    "day_of_week",
+    "month",
+    "is_weekend",
+    "is_night",
+    "is_rush_hour",
+    "queue_length",
+    "hour_sin",
+    "hour_cos",
+    "day_sin",
+    "day_cos",
+    "month_sin",
+    "month_cos",
+    "queue_hour",
+    "queue_weekend",
+    "queue_pressure",
+    "night_shift_constraint",
+    "seasonal_stress"
+  ],
+  "best_params": {
+    "max_depth": 10,
+    "min_samples_leaf": 2,
+    "min_samples_split": 5,
+    "n_estimators": 100
+  },
+  "metrics": {
+    "rmse_wait": 8.677667039975557,
+    "rmse_icu": 6.629503626169962
+  }
+}

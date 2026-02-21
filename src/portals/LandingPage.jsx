@@ -36,7 +36,7 @@ const LandingPage = () => {
             icon: Building2,
             color: 'var(--secondary)',
             secondary: 'var(--primary)',
-            path: '/hospital',
+            path: '/login',
             tooltip: 'Operational control & clinical triage'
         },
         {
@@ -45,7 +45,7 @@ const LandingPage = () => {
             icon: ShieldCheck,
             color: 'var(--accent)',
             secondary: 'var(--primary)',
-            path: '/admin',
+            path: '/login',
             tooltip: 'Strategic command & network stats'
         }
     ];

@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup, Circle, Polyline, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { getHospitals, getUrgencyColor } from '../../../services/api';
 import { AlertCircle, Navigation, Phone, Zap, Info, MapPin, X, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { getSurgeLevel } from '../../../../conduit-ml';
 import L from 'leaflet';
 
 // Component to fix Leaflet gray tiles issue
@@ -50,8 +51,17 @@ const EmergencyRouting = () => {
         const fetchData = async () => {
             setIsLoading(true);
             const data = await getHospitals();
-            setHospitals(data);
-            if (data.length > 0) setSelectedHospital(data[0]);
+            // Sort hospitals: prioritize lowest ER wait + highest ICU availability (best for emergencies)
+            const sorted = [...data].sort((a, b) => {
+                const scoreA = (a.erWaitTime || 0) - (a.icuAvailability || 0);
+                const scoreB = (b.erWaitTime || 0) - (b.icuAvailability || 0);
+                return scoreA - scoreB;
+            }).map(h => ({
+                ...h,
+                mlSurgeLevel: getSurgeLevel(h.icuAvailability || h.occupancy || 50, h.erWaitTime || 0)
+            }));
+            setHospitals(sorted);
+            if (sorted.length > 0) setSelectedHospital(sorted[0]);
             setIsLoading(false);
         };
         fetchData();

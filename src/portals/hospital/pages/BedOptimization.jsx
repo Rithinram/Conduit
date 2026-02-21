@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+import { getHospitalById } from '../../../services/api';
+
 const BedOptimization = () => {
     const [selectedPatient, setSelectedPatient] = useState(null);
     const [showTransferDialog, setShowTransferDialog] = useState(false);
@@ -14,11 +16,26 @@ const BedOptimization = () => {
     const [executingTransfer, setExecutingTransfer] = useState(null);
     const [dischargeSuccess, setDischargeSuccess] = useState(false);
 
-    const stats = [
-        { label: 'Total Beds', value: 250, sub: '88% Occupied' },
-        { label: 'ICU Capacity', value: '4/45', sub: 'Critical Level', status: 'danger' },
-        { label: 'Est. Discharges', value: 12, sub: 'Next 4 Hours', status: 'success' },
-    ];
+    const [hospital, setHospital] = useState(null);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        const user = JSON.parse(localStorage.getItem('user'));
+        const hospitalId = user?.hospitalId || '67b7f1e737bd488820c3ccf2';
+
+        const fetchHospital = async () => {
+            setIsLoading(true);
+            try {
+                const data = await getHospitalById(hospitalId);
+                setHospital(data);
+            } catch (err) {
+                console.error("Fetch hospital failed:", err);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchHospital();
+    }, []);
 
     const [dischargeCandidates, setDischargeCandidates] = useState([
         {
@@ -40,6 +57,14 @@ const BedOptimization = () => {
             notes: 'Stable rhythm. Ready for down-triage to telemetry ward.'
         },
     ]);
+
+    if (isLoading || !hospital) return <div>Synchronizing Bed Data...</div>;
+
+    const stats = [
+        { label: 'Total Beds', value: hospital.totalBeds, sub: `${hospital.occupancy}% Occupied` },
+        { label: 'ICU Capacity', value: `${hospital.availableICU}/${hospital.totalICU}`, sub: 'High Fidelity Tracking', status: hospital.availableICU < 10 ? 'danger' : 'success' },
+        { label: 'ER Rating', value: hospital.rating, sub: 'User Consensus', status: 'success' },
+    ];
 
     const handleAutoInitiate = () => {
         setIsAutoInitiating(true);

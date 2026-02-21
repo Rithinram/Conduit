@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { getHospitals, getUrgencyColor } from '../../../services/api';
 import { Search, MapPin, Clock, Bed, ArrowRight, TrendingDown, TrendingUp, Filter, Info, Star, Activity, X, Navigation, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { predictLoad, isModelTrained } from '../../../../conduit-ml';
 import { MapContainer, TileLayer, Marker, Popup, Circle, Polyline, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -131,9 +132,22 @@ const HospitalSelector = () => {
     };
 
     useEffect(() => {
-        // Mocking API fetch delay
-        setIsLoading(true);
-        setTimeout(() => setIsLoading(false), 800);
+        const fetchHospitals = async () => {
+            setIsLoading(true);
+            const data = await getHospitals();
+
+            // Enrich with ML-predicted wait times (Async)
+            const now = new Date();
+            const enriched = await Promise.all(data.map(async h => {
+                const pred = await predictLoad(now.getHours(), now.getDay(), Math.round((h.occupancy || 50) / 5));
+                return { ...h, mlPredictedWait: pred.predictedWaitTime };
+            }));
+
+            enriched.sort((a, b) => a.mlPredictedWait - b.mlPredictedWait);
+            setHospitals(enriched);
+            setIsLoading(false);
+        };
+        fetchHospitals();
     }, []);
 
     const filteredHospitals = hospitals.filter(h => {
@@ -384,8 +398,9 @@ const HospitalSelector = () => {
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
                                 {[
                                     { icon: Clock, label: 'ER WAIT', value: `${hospital.erWaitTime}m`, color: 'var(--primary)' },
-                                    { icon: Bed, label: 'ICU FREE', value: hospital.icuAvailability, color: 'var(--secondary)' },
-                                    { icon: Activity, label: 'TOTAL LOAD', value: `${hospital.occupancy}%`, color: 'var(--accent)' }
+                                    { icon: Bed, label: 'ICU FREE', value: `${hospital.icuAvailability}%`, color: 'var(--secondary)' },
+                                    { icon: Activity, label: 'ML PREDICTED', value: `${hospital.mlPredictedWait || hospital.erWaitTime}m`, color: 'var(--accent)' },
+                                    { icon: Navigation, label: 'TOTAL LOAD', value: `${hospital.occupancy}%`, color: 'var(--primary)' }
                                 ].map((stat, i) => (
                                     <div key={i} className="glass" style={{
                                         padding: '12px',

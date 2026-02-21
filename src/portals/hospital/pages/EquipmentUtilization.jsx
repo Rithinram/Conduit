@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Microscope, Zap, AlertTriangle, RefreshCcw, Layout,
     Maximize2, Move, X, Activity, Thermometer,
     Wind, Droplets, Info, ArrowRight, Loader2, Gauge
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+
+import { getResources } from '../../../services/api';
 
 const equipmentData = [
     { id: 'mri1', name: 'MRI 1.5T', load: 95, status: 'Overloaded', type: 'Imaging', zone: 'Zone 01', icon: <Microscope /> },
@@ -21,6 +23,32 @@ const EquipmentUtilization = () => {
     const [isSyncing, setIsSyncing] = useState(false);
     const [redistributeStatus, setRedistributeStatus] = useState('idle'); // idle, processing, success
 
+    const [resources, setResources] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchResources = async () => {
+            setIsLoading(true);
+            try {
+                const data = await getResources();
+                // Transform for UI (Equipment list)
+                if (data.length > 0) {
+                    const mainRes = data[0]; // For demo, use first hospital's resources
+                    setResources([
+                        { id: 'v1', name: 'Ventilators', load: Math.round(((mainRes.ventilators - mainRes.availableVentilators) / mainRes.ventilators) * 100), status: mainRes.availableVentilators < 5 ? 'Critical' : 'Stable', color: mainRes.availableVentilators < 5 ? 'var(--danger)' : 'var(--success)' },
+                        { id: 'o2', name: 'Oxygen Cylinders', load: Math.round(((mainRes.oxygenCylinders - mainRes.availableOxygen) / mainRes.oxygenCylinders) * 100), status: 'Normal', color: 'var(--success)' },
+                        { id: 'staff', name: 'Staff on Duty', load: Math.round((mainRes.staffOnDuty / 100) * 100), status: 'Active', color: 'var(--primary)' }
+                    ]);
+                }
+            } catch (err) {
+                console.error("Fetch resources failed:", err);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchResources();
+    }, []);
+
     const handleSync = () => {
         setIsSyncing(true);
         setTimeout(() => setIsSyncing(false), 1500);
@@ -36,6 +64,8 @@ const EquipmentUtilization = () => {
             }, 2000);
         }, 2000);
     };
+
+    if (isLoading) return <div>Synchronizing Resources...</div>;
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>

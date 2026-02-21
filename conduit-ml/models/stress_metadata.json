@@ -1,0 +1,8 @@
+{
+  "feature_cols": [
+    "region_load",
+    "neighbor_dist",
+    "neighbor_avail",
+    "local_icu"
+  ]
+}
