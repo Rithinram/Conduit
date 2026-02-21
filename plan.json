@@ -1,0 +1,208 @@
+{
+  "project": "Conduit",
+  "description": "A hospital coordination platform with three portals (User, Hospital, Admin) using three reusable intelligence engines: Urgency Classification, Load Prediction, and Surge Detection.",
+  "tech_stack": {
+    "frontend": "Vite + React",
+    "styling": "Tailwind CSS",
+    "icons": "lucide-react",
+    "charts": "recharts",
+    "maps": "react-leaflet + leaflet",
+    "backend": "PocketBase",
+    "ml_libraries": "ml-regression, ml-logistic-regression", 
+    "hosting": "Vercel (frontend) + Railway (PocketBase)" //Not necessary for now
+  },
+  "phases": [
+    {
+      "phase": 1,
+      "name": "Initialization & Environment Setup",
+      "steps": [
+        {
+          "step": 1.1,
+          "name": "Install prerequisites",
+          "description": "Ensure Node.js v18+, npm, and git are installed.",
+          "commands": ["node --version", "npm --version", "git --version"],
+          "notes": "If not installed, download from nodejs.org and git-scm.com."
+        },
+        {
+          "step": 1.2,
+          "name": "Create React app with Vite",
+          "commands": [
+            "mkdir conduit",
+            "cd conduit",
+            "npm create vite@latest frontend -- --template react",
+            "cd frontend",
+            "npm install"
+          ]
+        },
+        {
+          "step": 1.3,
+          "name": "Install dependencies",
+          "commands": [
+            "npm install -D tailwindcss postcss autoprefixer",
+            "npx tailwindcss init -p",
+            "npm install react-router-dom pocketbase recharts lucide-react react-leaflet leaflet ml-regression ml-logistic-regression"
+          ],
+          "notes": "Configure tailwind.config.js content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}']"
+        },
+        {
+          "step": 1.4,
+          "name": "Set up PocketBase backend",
+          "commands": [
+            "cd ..",
+            "mkdir backend && cd backend",
+            "# Download PocketBase from https://pocketbase.io/docs/",
+            "wget https://github.com/pocketbase/pocketbase/releases/download/v0.22.0/pocketbase_0.22.0_linux_amd64.zip",
+            "unzip pocketbase_0.22.0_linux_amd64.zip",
+            "./pocketbase serve"
+          ],
+          "notes": "Keep server running; open http://127.0.0.1:8090/_/ to create admin account."
+        }
+      ]
+    },
+    {
+      "phase": 2,
+      "name": "Data Modeling & Seeding",
+      "steps": [
+        {
+          "step": 2.1,
+          "name": "Create PocketBase collections",
+          "description": "Via Admin UI or API, create collections with fields:",
+          "code": "hospitals: name (text), status (select: stable/watch/critical), erWait (number), icuOccupancy (number), beds (json), location (json)\npatients: name (text), condition (text), urgency (select: low/moderate/high/critical), eta (number), vitals (json), hospitalId (relation)\ntriageLog: patientId (relation), decisionTime (number), outcome (select: er/clinic/home), timestamp (date)\nloadHistory: hour (number), dayOfWeek (number), queueLength (number), waitTime (number), icuOccupancy (number)"
+        },
+        {
+          "step": 2.2,
+          "name": "Seed mock data",
+          "description": "Create seed.js script in frontend/src/data and run it.",
+          "code": "import PocketBase from 'pocketbase';\nconst pb = new PocketBase('http://127.0.0.1:8090');\n\nasync function seed() {\n  await pb.admins.authWithPassword('admin@example.com', 'your-password');\n  const hospitals = [\n    { name: 'Central General', status: 'stable', erWait: 12, icuOccupancy: 85, beds: { icu: 2, general: 5, ventilator: 3 }, location: { lat: 12.97, lng: 77.59 } },\n    { name: 'City Care', status: 'critical', erWait: 45, icuOccupancy: 42, beds: { icu: 0, general: 2, ventilator: 1 }, location: { lat: 12.98, lng: 77.60 } },\n    { name: 'Northside Clinic', status: 'stable', erWait: 8, icuOccupancy: 30, beds: { icu: 4, general: 10, ventilator: 2 }, location: { lat: 13.01, lng: 77.58 } }\n  ];\n  for (const h of hospitals) await pb.collection('hospitals').create(h);\n  const hospitalRecords = await pb.collection('hospitals').getFullList();\n  const patients = [\n    { name: 'John Doe', condition: 'Cardiac', urgency: 'critical', eta: 2, vitals: { hr: 110, bp: '140/90' }, hospitalId: hospitalRecords[0].id },\n    { name: 'Jane Smith', condition: 'Fracture', urgency: 'moderate', eta: 8, vitals: { hr: 80, bp: '120/80' }, hospitalId: hospitalRecords[1].id },\n    { name: 'Robert Brown', condition: 'Fever', urgency: 'low', eta: 15, vitals: { hr: 95, bp: '130/85' }, hospitalId: hospitalRecords[2].id }\n  ];\n  for (const p of patients) await pb.collection('patients').create(p);\n  for (let i = 0; i < 200; i++) {\n    await pb.collection('loadHistory').create({\n      hour: Math.floor(Math.random() * 24),\n      dayOfWeek: Math.floor(Math.random() * 7),\n      queueLength: Math.floor(Math.random() * 20),\n      waitTime: Math.floor(5 + 0.3 * i%24 + 0.8 * Math.random()*20 + Math.random()*10),\n      icuOccupancy: Math.floor(50 + Math.random()*40)\n    });\n  }\n  console.log('Seeding complete');\n}\nseed();",
+          "commands": ["cd frontend/src", "mkdir data", "touch data/seed.js", "# paste code, then run: node data/seed.js"]
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "name": "Implement Intelligence Engines",
+      "steps": [
+        {
+          "step": 3.1,
+          "name": "Urgency Classification",
+          "description": "Create lib/urgencyModel.js with rule-based scoring.",
+          "code": "export function getUrgencyScore(condition, age, severity) {\n  const base = { cardiac:95, stroke:98, fracture:60, fever:30, cough:20 };\n  let score = base[condition?.toLowerCase()] || 50;\n  if (age > 60) score += 10;\n  if (severity > 3) score += 15;\n  return Math.min(score, 100);\n}\nexport function getUrgencyLevel(score) {\n  if (score >= 80) return 'critical';\n  if (score >= 50) return 'moderate';\n  return 'low';\n}"
+        },
+        {
+          "step": 3.2,
+          "name": "Load Prediction Model",
+          "description": "Create lib/loadModel.js with linear regression trained on loadHistory.",
+          "code": "import { MultivariateLinearRegression } from 'ml-regression-multivariate-linear';\nimport PocketBase from 'pocketbase';\nlet model = null;\nexport async function trainLoadModel() {\n  const pb = new PocketBase('http://127.0.0.1:8090');\n  const records = await pb.collection('loadHistory').getFullList();\n  if (!records.length) return;\n  const X = records.map(r => [r.hour, r.dayOfWeek, r.queueLength]);\n  const y = records.map(r => [r.waitTime, r.icuOccupancy]);\n  model = new MultivariateLinearRegression(X, y);\n}\nexport function predictLoad(hour, dayOfWeek, queueLength) {\n  if (!model) return { waitTime: 0, icuOccupancy: 0 };\n  const pred = model.predict([hour, dayOfWeek, queueLength]);\n  return { waitTime: Math.round(pred[0]), icuOccupancy: Math.round(pred[1]) };\n}"
+        },
+        {
+          "step": 3.3,
+          "name": "Surge Detection",
+          "description": "Create lib/surgeLogic.js with rule-based thresholds.",
+          "code": "export function getSurgeLevel(icuOccupancy, erWait, admissionRate, movingAvg) {\n  if (icuOccupancy > 85 || erWait > 45) return 'CRITICAL';\n  if (admissionRate > movingAvg * 1.5) return 'WATCH';\n  return 'STABLE';\n}\nexport function computeMovingAverage(history, window=6) {\n  const recent = history.slice(-window);\n  return recent.reduce((a,b)=>a+b,0)/recent.length;\n}"
+        }
+      ]
+    },
+    {
+      "phase": 4,
+      "name": "Build Frontend Pages",
+      "steps": [
+        {
+          "step": 4.1,
+          "name": "Set up routing and PocketBase client",
+          "description": "Create lib/pocketbase.js and configure App.jsx with routes.",
+          "code": "// lib/pocketbase.js\nimport PocketBase from 'pocketbase';\nexport default new PocketBase('http://127.0.0.1:8090');\n\n// App.jsx\nimport { BrowserRouter, Routes, Route } from 'react-router-dom';\nimport UserPortal from './pages/UserPortal';\nimport HospitalPortal from './pages/HospitalPortal';\nimport AdminPortal from './pages/AdminPortal';\nexport default function App() {\n  return (\n    <BrowserRouter>\n      <Routes>\n        <Route path=\"/user\" element={<UserPortal />} />\n        <Route path=\"/hospital\" element={<HospitalPortal />} />\n        <Route path=\"/admin\" element={<AdminPortal />} />\n      </Routes>\n    </BrowserRouter>\n  );\n}"
+        },
+        {
+          "step": 4.2,
+          "name": "User Portal",
+          "description": "Create SOS button, hospital cards, and surge indicator.",
+          "code": "// pages/UserPortal.jsx\nimport { useEffect, useState } from 'react';\nimport pb from '../lib/pocketbase';\nimport { getSurgeLevel } from '../lib/surgeLogic';\nexport default function UserPortal() {\n  const [hospitals, setHospitals] = useState([]);\n  const [surge, setSurge] = useState('STABLE');\n  useEffect(() => {\n    const fetch = async () => {\n      const list = await pb.collection('hospitals').getFullList();\n      setHospitals(list);\n      const avgIcu = list.reduce((a,h)=>a+h.icuOccupancy,0)/list.length;\n      const maxWait = Math.max(...list.map(h=>h.erWait));\n      setSurge(getSurgeLevel(avgIcu, maxWait, 0, 0));\n    };\n    fetch();\n    pb.collection('hospitals').subscribe('*', fetch);\n    return () => pb.collection('hospitals').unsubscribe('*');\n  }, []);\n  return (\n    <div className=\"p-4\">\n      <div className=\"flex justify-between\">\n        <h1 className=\"text-2xl font-bold\">Emergency Routing</h1>\n        <span className={`px-2 py-1 rounded text-white ${surge==='CRITICAL'?'bg-red-600':'bg-green-600'}`}>\n          Surge Protocol: {surge}\n        </span>\n      </div>\n      <button className=\"w-full bg-red-600 text-white py-4 rounded-lg my-4 text-xl\">SOS</button>\n      <h2 className=\"text-xl\">Nearest Facilities</h2>\n      {hospitals.map(h => (\n        <div key={h.id} className=\"border p-2 my-2 rounded\">\n          <div className=\"font-bold\">{h.name}</div>\n          <div className={`badge ${h.status==='critical'?'bg-red-200':'bg-green-200'}`}>{h.status.toUpperCase()}</div>\n          <div>ER Wait: {h.erWait} min + ICU: {h.icuOccupancy}%</div>\n        </div>\n      ))}\n    </div>\n  );\n}"
+        },
+        {
+          "step": 4.3,
+          "name": "Hospital Portal",
+          "description": "Create smart triage table and metrics.",
+          "code": "// pages/HospitalPortal.jsx\nimport { useEffect, useState } from 'react';\nimport pb from '../lib/pocketbase';\nimport { getUrgencyLevel } from '../lib/urgencyModel';\nexport default function HospitalPortal() {\n  const [patients, setPatients] = useState([]);\n  useEffect(() => {\n    const fetch = async () => {\n      const list = await pb.collection('patients').getFullList({ expand: 'hospitalId' });\n      setPatients(list);\n    };\n    fetch();\n    pb.collection('patients').subscribe('*', fetch);\n    return () => pb.collection('patients').unsubscribe('*');\n  }, []);\n  return (\n    <div className=\"p-4\">\n      <h1 className=\"text-2xl font-bold\">Smart Triage</h1>\n      <div className=\"grid grid-cols-3 gap-2 my-4\">\n        <div className=\"bg-gray-100 p-2 rounded\">Triage Efficiency 88%</div>\n        <div className=\"bg-gray-100 p-2 rounded\">Avg Decision Time: 42s</div>\n        <div className=\"bg-gray-100 p-2 rounded\">Diverted Load: 12/hr</div>\n      </div>\n      <table className=\"w-full\">\n        <thead><tr><th>Patient</th><th>Condition</th><th>Urgency</th><th>ETA</th></tr></thead>\n        <tbody>\n          {patients.map(p => (\n            <tr key={p.id} className={p.urgency==='critical'?'bg-red-100':p.urgency==='moderate'?'bg-yellow-100':'bg-green-100'}>\n              <td>{p.name}</td>\n              <td>{p.condition}</td>\n              <td>{p.urgency.toUpperCase()}</td>\n              <td>{p.eta} min</td>\n            </tr>\n          ))}\n        </tbody>\n      </table>\n    </div>\n  );\n}"
+        },
+        {
+          "step": 4.4,
+          "name": "Admin Portal",
+          "description": "Show network operations with clinic list and map.",
+          "code": "// pages/AdminPortal.jsx\nimport { useEffect, useState } from 'react';\nimport pb from '../lib/pocketbase';\nimport { MapContainer, TileLayer, Marker } from 'react-leaflet';\nimport 'leaflet/dist/leaflet.css';\nexport default function AdminPortal() {\n  const [hospitals, setHospitals] = useState([]);\n  useEffect(() => {\n    const fetch = async () => {\n      const list = await pb.collection('hospitals').getFullList();\n      setHospitals(list);\n    };\n    fetch();\n    pb.collection('hospitals').subscribe('*', fetch);\n    return () => pb.collection('hospitals').unsubscribe('*');\n  }, []);\n  const stableCount = hospitals.filter(h => h.status === 'stable').length;\n  return (\n    <div className=\"p-4\">\n      <h1 className=\"text-2xl font-bold\">Network Operations</h1>\n      <p>{stableCount} Clinics Stable</p>\n      <div className=\"grid grid-cols-2 gap-4\">\n        <div>\n          {hospitals.map(h => (\n            <div key={h.id} className=\"flex items-center border-b py-1\">\n              <span className={\"w-3 h-3 rounded-full mr-2 \" + (h.status==='critical'?'bg-red-500':'bg-green-500')}></span>\n              <span>{h.name}</span>\n            </div>\n          ))}\n        </div>\n        <MapContainer center={[12.97,77.59]} zoom={10} style={{height:'300px'}}>\n          <TileLayer url=\"https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png\"/>\n          {hospitals.map(h => h.location && (\n            <Marker key={h.id} position={[h.location.lat, h.location.lng]} />\n          ))}\n        </MapContainer>\n      </div>\n    </div>\n  );\n}"
+        }
+      ]
+    },
+    {
+      "phase": 5,
+      "name": "Integration & Real-time Sync",
+      "steps": [
+        {
+          "step": 5.1,
+          "name": "Integrate models",
+          "description": "Call trainLoadModel() in App useEffect. Use urgency model in patient table if not already.",
+          "code": "// App.jsx addition\nimport { useEffect } from 'react';\nimport { trainLoadModel } from './lib/loadModel';\nuseEffect(() => { trainLoadModel(); }, []);"
+        },
+        {
+          "step": 5.2,
+          "name": "Add surge detection to admin",
+          "description": "Compute and display surge level for each hospital using rules.",
+          "notes": "You can add a column in admin showing surge level based on icuOccupancy and erWait."
+        },
+        {
+          "step": 5.3,
+          "name": "End-to-end test",
+          "description": "Manually create a patient in PocketBase admin and verify updates across portals."
+        }
+      ]
+    },
+    {
+      "phase": 6,
+      "name": "Polishing & Fine-tuning",
+      "steps": [
+        {
+          "step": 6.1,
+          "name": "UI polish",
+          "description": "Adjust Tailwind classes to match provided mockups exactly."
+        },
+        {
+          "step": 6.2,
+          "name": "Loading states",
+          "description": "Add spinners while fetching data."
+        },
+        {
+          "step": 6.3,
+          "name": "Record backup demo",
+          "description": "Screen record the entire flow."
+        }
+      ]
+    },
+    {
+      "phase": 7,
+      "name": "Deployment & Submission",
+      "steps": [
+        {
+          "step": 7.1,
+          "name": "Deploy frontend to Vercel",
+          "commands": [
+            "git init",
+            "git add .",
+            "git commit -m 'ready'",
+            "gh repo create conduit --public --source=. --push",
+            "# Import on vercel.com"
+          ]
+        },
+        {
+          "step": 7.2,
+          "name": "Deploy PocketBase to Railway",
+          "description": "Create Dockerfile in backend folder and deploy.",
+          "code": "FROM alpine:latest\nRUN apk add --no-cache ca-certificates\nCOPY pocketbase /usr/local/bin/pocketbase\nEXPOSE 8090\nCMD [\"pocketbase\", \"serve\", \"--http=0.0.0.0:8090\"]"
+        },
+        {
+          "step": 7.3,
+          "name": "Prepare submission",
+          "description": "Create README with live demo links and explanation of three engines."
+        }
+      ]
+    }
+  ]
+}
