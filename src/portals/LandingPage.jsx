@@ -1,11 +1,24 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Activity, ShieldCheck, ArrowRight, ShieldAlert, Zap, HeartPulse, Building2, MapPin } from 'lucide-react';
+import { User, Activity, ShieldCheck, ArrowRight, ShieldAlert, Zap, HeartPulse, Building2, MapPin, Phone, X } from 'lucide-react';
 
 const LandingPage = () => {
     const navigate = useNavigate();
     const [hoveredCard, setHoveredCard] = useState(null);
+    const [emergencyTriggered, setEmergencyTriggered] = useState(false);
+
+    useEffect(() => {
+        if (emergencyTriggered) {
+            const timer = setTimeout(() => setEmergencyTriggered(false), 8000);
+            return () => clearTimeout(timer);
+        }
+    }, [emergencyTriggered]);
+
+    const handleEmergency = () => {
+        setEmergencyTriggered(true);
+        window.location.href = 'tel:112';
+    };
 
     const cards = [
         {
@@ -136,16 +149,63 @@ const LandingPage = () => {
                 </motion.svg>
             </div>
 
+            {/* EMERGENCY NOTIFICATION BANNER */}
+            <AnimatePresence>
+                {emergencyTriggered && (
+                    <motion.div
+                        initial={{ y: -100, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        exit={{ y: -100, opacity: 0 }}
+                        transition={{ type: 'spring', damping: 20 }}
+                        style={{
+                            position: 'fixed',
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            zIndex: 1000,
+                            background: 'linear-gradient(135deg, #E63946 0%, #c1121f 100%)',
+                            color: 'white',
+                            padding: '20px 40px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            boxShadow: '0 8px 32px rgba(230, 57, 70, 0.5)'
+                        }}
+                    >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                            <motion.div
+                                animate={{ scale: [1, 1.2, 1] }}
+                                transition={{ repeat: Infinity, duration: 1 }}
+                                style={{ background: 'rgba(255,255,255,0.2)', padding: '12px', borderRadius: '50%' }}
+                            >
+                                <Phone size={28} />
+                            </motion.div>
+                            <div>
+                                <div style={{ fontSize: '1.1rem', fontWeight: 900, letterSpacing: '1px' }}>🚨 EMERGENCY SERVICES DIALING — 112</div>
+                                <div style={{ fontSize: '0.85rem', opacity: 0.9, marginTop: '2px' }}>Connecting you to emergency services. Stay on the line and share your location.</div>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => setEmergencyTriggered(false)}
+                            style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', padding: '8px', borderRadius: '50%', cursor: 'pointer', display: 'flex' }}
+                        >
+                            <X size={20} />
+                        </button>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             {/* 2. FLOATING EMERGENCY BUTTON */}
             <motion.div
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
                 className="pulse-alert"
+                onClick={handleEmergency}
                 style={{
-                    position: 'absolute',
-                    top: '40px',
-                    right: '40px',
-                    zIndex: 100,
+                    position: 'fixed',
+                    top: '24px',
+                    right: '24px',
+                    zIndex: 200,
                     cursor: 'pointer'
                 }}
             >

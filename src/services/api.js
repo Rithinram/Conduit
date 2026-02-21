@@ -25,15 +25,31 @@ export const getHospitals = async () => {
     }
 };
 
+// Helper to derive urgency from triageScore or careLevel
+const getUrgencyFromPatient = (p) => {
+    if (p.triageScore != null) {
+        if (p.triageScore >= 8) return 'critical';
+        if (p.triageScore >= 5) return 'moderate';
+        return 'low';
+    }
+    if (p.careLevel) {
+        const level = p.careLevel.toLowerCase();
+        if (level === 'icu' || level === 'critical') return 'critical';
+        if (level === 'general' || level === 'moderate') return 'moderate';
+        return 'low';
+    }
+    return 'moderate';
+};
+
 export const getPatients = async () => {
     try {
         const response = await fetch(`${API_BASE_URL}/patients`);
         const data = await response.json();
-        // Transform id to match UI
         return data.map(p => ({
             ...p,
             id: p._id,
-            arrival: '10 mins', // Placeholder as not in model
+            urgency: getUrgencyFromPatient(p),
+            arrival: '10 mins',
             type: p.chronicConditions?.join(', ') || 'General'
         }));
     } catch (error) {
@@ -46,13 +62,7 @@ export const getSystemMetrics = async () => {
     try {
         const response = await fetch(`${API_BASE_URL}/status`);
         const data = await response.json();
-        // For now returning mock-like metrics using backend status
-        return {
-            cityStress: 68, // Placeholder
-            activeSurge: false,
-            communityHealthIndex: 82,
-            predictiveSurgeProb: 15
-        };
+        return data;
     } catch (error) {
         console.error('Error fetching system metrics:', error);
         return null;

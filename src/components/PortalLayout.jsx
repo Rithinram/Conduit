@@ -20,6 +20,7 @@ const PortalLayout = ({ portalName, menuItems }) => {
     const location = useLocation();
     const navigate = useNavigate();
     const [isSidebarHovered, setIsSidebarHovered] = useState(false);
+    const [showNotifications, setShowNotifications] = useState(false);
 
     const getPortalConfig = () => {
         if (portalName === 'USER') return {
@@ -272,9 +273,53 @@ const PortalLayout = ({ portalName, menuItems }) => {
                             <span style={{ fontSize: '0.72rem', fontWeight: 900, color: 'var(--text-muted)', letterSpacing: '0.5px' }}>GLOBAL NODE SYNC ACTIVE</span>
                         </div>
 
-                        <button className="btn glass elevation-hover" style={{ width: 48, height: 48, padding: 0, borderRadius: '14px' }}>
-                            <Bell size={22} color="var(--text-muted)" />
-                        </button>
+                        <div style={{ position: 'relative' }}>
+                            <button onClick={() => setShowNotifications(!showNotifications)} className="btn glass elevation-hover" style={{ width: 48, height: 48, padding: 0, borderRadius: '14px', position: 'relative' }}>
+                                <Bell size={22} color="var(--text-muted)" />
+                                <div style={{ position: 'absolute', top: 8, right: 8, width: 8, height: 8, borderRadius: '50%', background: 'var(--danger)' }} />
+                            </button>
+                            <AnimatePresence>
+                                {showNotifications && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                                        exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                                        style={{
+                                            position: 'absolute',
+                                            top: '56px',
+                                            right: 0,
+                                            width: '320px',
+                                            background: 'white',
+                                            borderRadius: 'var(--radius-lg)',
+                                            boxShadow: '0 16px 48px rgba(0,0,0,0.15)',
+                                            border: '1px solid var(--surface-border)',
+                                            zIndex: 1000,
+                                            overflow: 'hidden'
+                                        }}
+                                    >
+                                        <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--surface-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <span style={{ fontWeight: 800, fontSize: '0.85rem' }}>Notifications</span>
+                                            <button onClick={() => setShowNotifications(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', display: 'flex' }}>
+                                                <span style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>✕</span>
+                                            </button>
+                                        </div>
+                                        {[
+                                            { text: 'Surge protocol status updated — network stable', time: '2 min ago', color: 'var(--success)' },
+                                            { text: 'ICU capacity alert at City Care Medical Center', time: '12 min ago', color: 'var(--danger)' },
+                                            { text: 'New patient intake registered via triage', time: '28 min ago', color: 'var(--primary)' }
+                                        ].map((n, i) => (
+                                            <div key={i} style={{ padding: '12px 16px', borderBottom: '1px solid var(--surface-border)', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                                                <div style={{ width: 8, height: 8, borderRadius: '50%', background: n.color, marginTop: '6px', flexShrink: 0 }} />
+                                                <div>
+                                                    <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-main)' }}>{n.text}</div>
+                                                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>{n.time}</div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
 
                         <motion.button
                             whileHover={{ scale: 1.05 }}
