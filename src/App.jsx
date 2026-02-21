@@ -1,5 +1,4 @@
 import React from 'react';
-// Force Vite re-bundle for hospital portal stabilization
 import { Routes, Route, Navigate } from 'react-router-dom';
 import PortalLayout from './components/PortalLayout';
 import * as UserPages from './portals/user/Pages';

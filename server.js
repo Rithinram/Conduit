@@ -3,7 +3,6 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const hospitalRoutes = require("./routes/hospitalRoutes");
 const patientRoutes = require("./routes/patientRoutes");
-const triageRoutes = require("./routes/triageRoutes");
 
 require("dotenv").config();
 
@@ -17,7 +16,6 @@ const Hospital = require("./models/Hospital");
 // Routes
 app.use("/api/hospitals", hospitalRoutes);
 app.use("/api/patients", patientRoutes);
-app.use("/api/triage", triageRoutes);
 
 // System status endpoint (used by SystemStress and SurgePage)
 app.get("/api/status", async (req, res) => {

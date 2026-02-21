@@ -48,76 +48,13 @@ export const getPatients = async () => {
         return data.map(p => ({
             ...p,
             id: p._id,
-            arrival: '10 mins', // Placeholder as not in model
+            urgency: getUrgencyFromPatient(p),
+            arrival: '10 mins',
             type: p.chronicConditions?.join(', ') || 'General'
         }));
     } catch (error) {
         console.error('Error fetching patients:', error);
         return [];
-    }
-};
-
-// Smart Triage Services
-export const getTriageQueue = async (hospitalId) => {
-    try {
-        const response = await fetch(`${API_BASE_URL}/triage/queue/${hospitalId}`);
-        return await response.json();
-    } catch (error) {
-        console.error('Error fetching triage queue:', error);
-        return [];
-    }
-};
-
-export const updateVitals = async (patientId, data) => {
-    try {
-        const response = await fetch(`${API_BASE_URL}/triage/update-vitals/${patientId}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        });
-        return await response.json();
-    } catch (error) {
-        console.error('Error updating vitals:', error);
-        return { success: false };
-    }
-};
-
-export const updateTriageStatus = async (patientId, status) => {
-    try {
-        const response = await fetch(`${API_BASE_URL}/triage/update-status/${patientId}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status })
-        });
-        return await response.json();
-    } catch (error) {
-        console.error('Error updating triage status:', error);
-        return { success: false };
-    }
-};
-
-// Flow Visualizer Services
-export const getFlowMetrics = async (hospitalId) => {
-    try {
-        const response = await fetch(`${API_BASE_URL}/triage/flow-metrics/${hospitalId}`);
-        return await response.json();
-    } catch (error) {
-        console.error('Error fetching flow metrics:', error);
-        return [];
-    }
-};
-
-export const approveMovement = async (visitId, nextStage, approvedBy) => {
-    try {
-        const response = await fetch(`${API_BASE_URL}/triage/approve-movement/${visitId}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ nextStage, approvedBy })
-        });
-        return await response.json();
-    } catch (error) {
-        console.error('Error approving movement:', error);
-        return { success: false };
     }
 };
 

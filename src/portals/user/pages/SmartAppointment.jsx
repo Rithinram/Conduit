@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid, BarChart, Bar, Cell } from 'recharts';
-import { Calendar, Clock, AlertCircle, CheckCircle2, Home, ArrowRight, Activity, User, Building2, MapPin, X, History, ChevronLeft } from 'lucide-react';
+import { Calendar, Clock, AlertCircle, CheckCircle2, Home, ArrowRight, Activity, User, Building2, MapPin, X, History, ChevronLeft, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useSurgeActions } from '../../../context/SurgeActionsContext';
 
 const hourlyPredictions = [
     { time: '09:00', load: 85, occupancy: 78, prediction: 'Rising' },
@@ -48,6 +49,12 @@ const SmartAppointment = () => {
     const [showSummary, setShowSummary] = useState(false);
     const [isBooked, setIsBooked] = useState(false);
     const [bookedHistory, setBookedHistory] = useState([]);
+
+    // Get rescheduled appointments from Surge Protocol deferral
+    const { rescheduledAppointment } = useSurgeActions();
+    const allBookings = rescheduledAppointment
+        ? [rescheduledAppointment, ...bookedHistory]
+        : bookedHistory;
 
     const handleGraphClick = (data) => {
         if (data && data.activePayload && data.activePayload.length) {
@@ -312,20 +319,29 @@ const SmartAppointment = () => {
                         <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Your Booked Appointments</h3>
                     </div>
 
-                    {bookedHistory.length === 0 ? (
+                    {allBookings.length === 0 ? (
                         <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', textAlign: 'center', padding: 'var(--space-xl)' }}>
                             <Calendar size={48} style={{ opacity: 0.2, marginBottom: '16px' }} />
                             <p style={{ fontSize: '0.85rem' }}>No past appointments found.<br />Start the flow to book your first visit.</p>
                         </div>
                     ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                            {bookedHistory.map((item) => (
-                                <div key={item.id} className="glass" style={{ padding: '14px', borderRadius: '14px', borderLeft: '3px solid var(--success)' }}>
+                            {allBookings.map((item) => (
+                                <div key={item.id} className="glass" style={{ padding: '14px', borderRadius: '14px', borderLeft: `3px solid ${item.type === 'rescheduled' ? 'var(--warning)' : 'var(--success)'}` }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                                         <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>{item.doctor}</span>
-                                        <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>CONFIRMED</span>
+                                        {item.type === 'rescheduled' ? (
+                                            <span className="badge" style={{ fontSize: '0.65rem', background: 'var(--warning-bg)', color: 'var(--warning)', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                <RefreshCw size={10} /> RESCHEDULED
+                                            </span>
+                                        ) : (
+                                            <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>CONFIRMED</span>
+                                        )}
                                     </div>
                                     <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{item.hospital}</div>
+                                    {item.reason && (
+                                        <div style={{ fontSize: '0.7rem', color: 'var(--warning)', fontWeight: 600, marginTop: '4px' }}>{item.reason}</div>
+                                    )}
                                     <div style={{ fontSize: '0.75rem', fontWeight: 600, marginTop: '8px', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                                         <Clock size={12} /> {item.date}, {item.time}
                                     </div>

@@ -10,17 +10,7 @@ const visitSchema = new mongoose.Schema({
         ref: "Hospital"
     },
     triageLevel: String,
-    currentStage: {
-        type: String,
-        enum: ["Arrival", "Triage", "Waiting", "Consultation", "Lab", "Discharge"],
-        default: "Arrival"
-    },
-    stageHistory: [{
-        stage: String,
-        enteredAt: { type: Date, default: Date.now },
-        exitedAt: Date,
-        approvedBy: String
-    }],
+    currentStage: String,
     predictedWaitTime: Number,
     actualWaitTime: Number
 }, { timestamps: true });
