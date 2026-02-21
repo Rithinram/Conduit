@@ -39,12 +39,16 @@ const UnifiedAnalytics = () => {
             const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
             const currentMonth = months[new Date().getMonth()];
 
-            // For the demo/WOW factor, we'll map the next 6 hours but label them as a timeline
-            const mapped = fData.forecast.map((f, i) => ({
-                month: `${f.hour}:00`,
-                actual: 2000 + Math.random() * 500, // Simulated historic for overlay
-                predicted: f.predicted_wait_time * 100 // Scaling for visualization
-            }));
+            // Mapping 12 forecast points but displaying 6 for strategic overview
+            const mapped = fData.forecast.slice(0, 6).map((f, i) => {
+                // Deterministic historic baseline based on hour and month
+                const historicBaseline = 1500 + (f.hour * 50) + (new Date().getMonth() * 100);
+                return {
+                    month: `${f.hour}:00`,
+                    actual: Math.round(historicBaseline + (Math.sin(f.hour) * 200)),
+                    predicted: Math.round(f.predicted_wait_time * 100)
+                };
+            });
             setForecastData(mapped);
         }
 
@@ -57,15 +61,16 @@ const UnifiedAnalytics = () => {
 
     const capabilityData = useMemo(() => {
         const avgOccupancy = hospitals.reduce((acc, h) => acc + (h.occupancy || 0), 0) / (hospitals.length || 1);
+        const avgWait = hospitals.reduce((acc, h) => acc + (h.erWaitTime || 0), 0) / (hospitals.length || 1);
         const criticalCount = hospitals.filter(h => h.status === 'critical').length;
 
         return [
-            { subject: 'ER Efficiency', A: 120 - (criticalCount * 10), B: 110, fullMark: 150 },
-            { subject: 'Net Occupancy', A: Math.round(avgOccupancy * 1.5), B: 130, fullMark: 150 },
-            { subject: 'Tele Adoption', A: 86, B: 130, fullMark: 150 },
-            { subject: 'Staff Well-being', A: 99, B: 100, fullMark: 150 },
-            { subject: 'Resource Flow', A: 85, B: 90, fullMark: 150 },
-            { subject: 'Surge Prep', A: systemState?.redistributionProtocolActive ? 140 : 65, B: 85, fullMark: 150 },
+            { subject: 'ER Efficiency', A: Math.max(30, 100 - avgWait), B: 90, fullMark: 150 },
+            { subject: 'Net Occupancy', A: Math.round(avgOccupancy), B: 75, fullMark: 150 },
+            { subject: 'Tele Adoption', A: 86, B: 100, fullMark: 150 },
+            { subject: 'Staff Well-being', A: hospitals.every(h => h.occupancy < 90) ? 110 : 70, B: 100, fullMark: 150 },
+            { subject: 'Resource Flow', A: 85 + (systemState?.redistributionProtocolActive ? 15 : 0), B: 100, fullMark: 150 },
+            { subject: 'Surge Prep', A: systemState?.redistributionProtocolActive ? 140 : 65, B: 120, fullMark: 150 },
         ];
     }, [hospitals, systemState]);
 

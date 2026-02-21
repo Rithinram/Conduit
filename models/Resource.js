@@ -12,7 +12,18 @@ const resourceSchema = new mongoose.Schema({
     availableOxygen: { type: Number, default: 0 },
     staffOnDuty: { type: Number, default: 0 },
     ambulancesAvailable: { type: Number, default: 0 },
+
+    // Granular Supply Chain Management
+    inventoryItems: [{
+        category: { type: String, enum: ['Equipment', 'Consumable', 'Medication'], required: true },
+        itemName: { type: String, required: true },
+        lotNumber: { type: String },
+        expiryDate: { type: Date },
+        quantity: { type: Number, default: 0 },
+        status: { type: String, enum: ['Available', 'Expiring Soon', 'Expired', 'Maintenance'], default: 'Available' }
+    }],
     lastUpdated: { type: Date, default: Date.now }
 }, { timestamps: true });
+
 
 module.exports = mongoose.model("Resource", resourceSchema);

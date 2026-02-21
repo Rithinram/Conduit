@@ -191,10 +191,34 @@ def preprocess_load(df, is_train=True, scaler=None):
     df['hour_cos'] = np.cos(2*np.pi*df['hour']/24)
     df['day_sin'] = np.sin(2*np.pi*df['day_of_week']/7)
     df['day_cos'] = np.cos(2*np.pi*df['day_of_week']/7)
+    df['month_sin'] = np.sin(2*np.pi*df['month']/12)
+    df['month_cos'] = np.cos(2*np.pi*df['month']/12)
 
-    feature_cols = ['hour','day_of_week','month','is_weekend','is_night','is_rush_hour','queue_length','hour_sin','hour_cos','day_sin','day_cos']
+    # Advanced Interactions
+    df['queue_hour'] = df['queue_length'] * df['hour']
+    df['queue_weekend'] = df['queue_length'] * df['is_weekend']
+    df['queue_pressure'] = np.log1p(df['queue_length'] * (1 + df['is_rush_hour']))
+    df['night_shift_constraint'] = df['is_night'] * df['queue_length']
+    df['seasonal_stress'] = df['month'] * df['queue_length']
+
+    feature_cols = [
+        'hour', 'day_of_week', 'month', 'is_weekend', 'is_night', 'is_rush_hour', 
+        'queue_length', 'hour_sin', 'hour_cos', 'day_sin', 'day_cos', 
+        'month_sin', 'month_cos', 'queue_hour', 'queue_weekend', 
+        'queue_pressure', 'night_shift_constraint', 'seasonal_stress'
+    ]
+    
+    # Save feature columns in metadata for inference consistency
+    if is_train:
+        meta_path = os.path.join(MODEL_DIR, 'load_metadata.json')
+        meta = {}
+        if os.path.exists(meta_path):
+            with open(meta_path, 'r') as f: meta = json.load(f)
+        meta['feature_cols'] = feature_cols
+        with open(meta_path, 'w') as f: json.dump(meta, f, indent=2)
+
     X = df[feature_cols].values
-    y = df[['wait_time','icu_occupancy']].values
+    y = df[['wait_time', 'icu_occupancy']].values
 
     if is_train:
         scaler = StandardScaler()

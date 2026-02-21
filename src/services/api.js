@@ -7,6 +7,20 @@ const getStatusFromWaitTime = (waitTime) => {
     return 'stable';
 };
 
+// Helper to calculate distance from current city center (Station Pivot)
+const calculateDistance = (lat2, lon2) => {
+    const lat1 = 40.7128; // City Pivot (e.g., NYC center)
+    const lon1 = -74.0060;
+    const R = 6371; // km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return (R * c).toFixed(1);
+};
+
 export const getHospitals = async () => {
     try {
         const response = await fetch(`${API_BASE_URL}/hospitals`);
@@ -19,9 +33,9 @@ export const getHospitals = async () => {
             icuAvailability: h.totalICU ? Math.round(((h.availableICU) / h.totalICU) * 100) : 0,
             occupancy: h.totalBeds ? Math.round(((h.totalBeds - h.availableBeds) / h.totalBeds) * 100) : 0,
             location: [h.location.lat, h.location.lng],
-            distance: `${(Math.random() * 5 + 1).toFixed(1)} km`,
+            distance: `${calculateDistance(h.location.lat, h.location.lng)} km`,
             status: getStatusFromWaitTime(h.avgWaitTime),
-            loadTrend: ['stable', 'increasing', 'decreasing'][Math.floor(Math.random() * 3)]
+            loadTrend: h.avgWaitTime > 30 ? 'increasing' : 'stable'
         }));
     } catch (error) {
         console.error('Error fetching hospitals:', error);
@@ -32,16 +46,21 @@ export const getHospitals = async () => {
 export const getHospitalById = async (id) => {
     try {
         const response = await fetch(`${API_BASE_URL}/hospitals/${id}`);
+        if (!response.ok) throw new Error('Hospital not found');
         const h = await response.json();
+
+        // Robust mapping with fallbacks
         return {
             ...h,
-            id: h._id,
-            locationName: h.city,
+            id: h._id || id,
+            name: h.name || 'Unnamed Hospital',
+            city: h.city || 'Unknown Location',
+            locationName: h.city || 'Unknown Location',
             erWaitTime: h.avgWaitTime || 0,
             icuAvailability: h.totalICU ? Math.round(((h.availableICU) / h.totalICU) * 100) : 0,
             occupancy: h.totalBeds ? Math.round(((h.totalBeds - h.availableBeds) / h.totalBeds) * 100) : 0,
-            location: [h.location.lat, h.location.lng],
-            status: getStatusFromWaitTime(h.avgWaitTime)
+            location: h.location ? [h.location.lat || 0, h.location.lng || 0] : [0, 0],
+            status: getStatusFromWaitTime(h.avgWaitTime || 0)
         };
     } catch (error) {
         console.error('Error fetching hospital by ID:', error);
@@ -53,12 +72,16 @@ export const getPatients = async () => {
     try {
         const response = await fetch(`${API_BASE_URL}/patients`);
         const data = await response.json();
-        return data.map(p => ({
-            ...p,
-            id: p._id,
-            arrival: '10 mins', // Placeholder as not in model
-            type: p.chronicConditions?.join(', ') || 'General'
-        }));
+        return data.map(p => {
+            // Calculate a semi-realistic arrival time relative to wait list position
+            const baseArrival = p.urgencyLevel === 'Critical' ? 5 : p.urgencyLevel === 'High' ? 12 : 25;
+            return {
+                ...p,
+                id: p._id,
+                arrival: `${baseArrival} mins`,
+                type: p.chronicConditions?.join(', ') || 'General'
+            };
+        });
     } catch (error) {
         console.error('Error fetching patients:', error);
         return [];
@@ -106,14 +129,21 @@ export const updateTriageStatus = async (patientId, status) => {
 
 export const getSystemMetrics = async () => {
     try {
-        const response = await fetch(`${API_BASE_URL}/load`);
-        const data = await response.json();
-        // For now returning mock-like metrics using backend status
+        // Fetch real system state and a representative hospital load for network metrics
+        const [state, hospitals] = await Promise.all([
+            getSystemState(),
+            getHospitals()
+        ]);
+
+        const avgWait = hospitals.reduce((acc, h) => acc + (h.erWaitTime || 0), 0) / (hospitals.length || 1);
+        const avgOcc = hospitals.reduce((acc, h) => acc + (h.occupancy || 0), 0) / (hospitals.length || 1);
+
+        // Derive metrics from real averages instead of random numbers
         return {
-            cityStress: 68, // Placeholder
-            activeSurge: false,
-            communityHealthIndex: 82,
-            predictiveSurgeProb: 15
+            cityStress: Math.min(100, Math.round((avgWait * 1.5) + (avgOcc / 2))),
+            activeSurge: state?.redistributionProtocolActive || false,
+            communityHealthIndex: Math.max(0, 100 - Math.round(avgWait / 2)),
+            predictiveSurgeProb: Math.round(avgOcc > 85 ? 75 : avgOcc > 70 ? 40 : 15)
         };
     } catch (error) {
         console.error('Error fetching system metrics:', error);
@@ -244,6 +274,16 @@ export const transferResource = async (transferData) => {
     }
 };
 
+export const getHospitalLoadHistory = async (hospitalId) => {
+    try {
+        const response = await fetch(`${API_BASE_URL}/load/hospital/${hospitalId}`);
+        return await response.json();
+    } catch (error) {
+        console.error('Error fetching hospital load history:', error);
+        return [];
+    }
+};
+
 export const bulkRedirect = async () => {
     try {
         const response = await fetch(`${API_BASE_URL}/admin/bulk-redirect`, {
@@ -305,7 +345,7 @@ export const getNetworkStress_ML = async (payload) => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
-        return await response.data;
+        return await response.json();
     } catch (error) {
         console.error('Network stress error:', error);
         return { stress_index: 0 };

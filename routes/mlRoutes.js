@@ -57,6 +57,7 @@ router.post("/load", async (req, res) => {
 
 router.post("/forecast", async (req, res) => {
     try {
+        console.log("[ML-Forecast] Request received:", req.body);
         const result = await runInference('forecast', req.body);
         res.json(result);
     } catch (err) {
