@@ -48,13 +48,51 @@ export const getPatients = async () => {
         return data.map(p => ({
             ...p,
             id: p._id,
-            urgency: getUrgencyFromPatient(p),
-            arrival: '10 mins',
+            arrival: '10 mins', // Placeholder as not in model
             type: p.chronicConditions?.join(', ') || 'General'
         }));
     } catch (error) {
         console.error('Error fetching patients:', error);
         return [];
+    }
+};
+
+// Smart Triage Services
+export const getTriageQueue = async (hospitalId) => {
+    try {
+        const response = await fetch(`${API_BASE_URL}/triage/queue/${hospitalId}`);
+        return await response.json();
+    } catch (error) {
+        console.error('Error fetching triage queue:', error);
+        return [];
+    }
+};
+
+export const updateVitals = async (patientId, data) => {
+    try {
+        const response = await fetch(`${API_BASE_URL}/triage/update-vitals/${patientId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        return await response.json();
+    } catch (error) {
+        console.error('Error updating vitals:', error);
+        return { success: false };
+    }
+};
+
+export const updateTriageStatus = async (patientId, status) => {
+    try {
+        const response = await fetch(`${API_BASE_URL}/triage/update-status/${patientId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status })
+        });
+        return await response.json();
+    } catch (error) {
+        console.error('Error updating triage status:', error);
+        return { success: false };
     }
 };
 

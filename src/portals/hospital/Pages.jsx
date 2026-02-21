@@ -3,7 +3,7 @@ import PatientFlow from './pages/PatientFlow';
 import QueueManagement from './pages/QueueManagement';
 import BedOptimization from './pages/BedOptimization';
 import EquipmentUtilization from './pages/EquipmentUtilization';
-import StaffBalancer from './pages/StaffBalancer';
+import AvoidableVisitFilterAndStaffLoadBalancer from './pages/AvoidableVisitFilterAndStaffLoadBalancer';
 import SurgeManagement from './pages/SurgeManagement';
 import RedundancyMonitor from './pages/RedundancyMonitor';
 
@@ -13,7 +13,7 @@ export {
     QueueManagement,
     BedOptimization,
     EquipmentUtilization,
-    StaffBalancer,
+    AvoidableVisitFilterAndStaffLoadBalancer,
     SurgeManagement,
     RedundancyMonitor
 };

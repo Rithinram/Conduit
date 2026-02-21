@@ -87,7 +87,7 @@ function App() {
         <Route path="queue" element={<HospitalPages.QueueManagement />} />
         <Route path="beds" element={<HospitalPages.BedOptimization />} />
         <Route path="equipment" element={<HospitalPages.EquipmentUtilization />} />
-        <Route path="staff" element={<HospitalPages.StaffBalancer />} />
+        <Route path="staff" element={<HospitalPages.AvoidableVisitFilterAndStaffLoadBalancer />} />
         <Route path="surge" element={<HospitalPages.SurgeManagement />} />
         <Route path="redundancy" element={<HospitalPages.RedundancyMonitor />} />
       </Route>
