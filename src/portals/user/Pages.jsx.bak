@@ -1,0 +1,8 @@
+import React from 'react'; export const EmergencyRouting = () => <div className='card'><h1>EmergencyRouting</h1></div>;
+export const HospitalSelector = () => <div className='card'><h1>HospitalSelector</h1></div>;
+export const SystemStress = () => <div className='card'><h1>SystemStress</h1></div>;
+export const SmartAppointment = () => <div className='card'><h1>SmartAppointment</h1></div>;
+export const ReferralOptimization = () => <div className='card'><h1>ReferralOptimization</h1></div>;
+export const TestDuplication = () => <div className='card'><h1>TestDuplication</h1></div>;
+export const QueueTransparency = () => <div className='card'><h1>QueueTransparency</h1></div>;
+export const SurgePage = () => <div className='card'><h1>SurgePage</h1></div>;
