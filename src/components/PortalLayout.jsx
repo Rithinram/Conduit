@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { QueueNotificationProvider, useQueueNotification } from '../context/QueueNotificationContext';
+import { SurgeActionsProvider } from '../context/SurgeActionsContext';
 import {
     Activity,
     Bell,
@@ -13,7 +15,9 @@ import {
     LayoutDashboard,
     Clock,
     Zap,
-    HeartPulse
+    HeartPulse,
+    BellRing,
+    X as XIcon
 } from 'lucide-react';
 
 const PortalLayout = ({ portalName, menuItems }) => {
@@ -44,6 +48,33 @@ const PortalLayout = ({ portalName, menuItems }) => {
     };
 
     const config = getPortalConfig();
+
+    const content = (
+        <PortalLayoutInner portalName={portalName} menuItems={menuItems} config={config} />
+    );
+
+    // Wrap USER portal in notification + surge providers
+    if (portalName === 'USER') {
+        return (
+            <QueueNotificationProvider>
+                <SurgeActionsProvider>
+                    {content}
+                </SurgeActionsProvider>
+            </QueueNotificationProvider>
+        );
+    }
+
+    return content;
+};
+
+const PortalLayoutInner = ({ portalName, menuItems, config }) => {
+    const location = useLocation();
+    const navigate = useNavigate();
+    const [isSidebarHovered, setIsSidebarHovered] = useState(false);
+    const [showNotifications, setShowNotifications] = useState(false);
+
+    // Access queue notification context (only available in USER portal)
+    const queueCtx = portalName === 'USER' ? useQueueNotification() : null;
 
     return (
         <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: 'var(--background)' }}>
@@ -181,32 +212,7 @@ const PortalLayout = ({ portalName, menuItems }) => {
                         <Home size={18} /> Exit to Pulse Map
                     </button>
 
-                    <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '12px',
-                        padding: '12px',
-                        borderRadius: 'var(--radius-md)',
-                        background: 'white',
-                        border: '1px solid var(--surface-border)'
-                    }}>
-                        <div style={{
-                            width: 44,
-                            height: 44,
-                            borderRadius: '12px',
-                            background: `${config.primary}10`,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                        }}>
-                            <UserIcon size={22} color={config.primary} />
-                        </div>
-                        <div style={{ flex: 1, overflow: 'hidden' }}>
-                            <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-main)', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>Dr. Elena Vance</div>
-                            <div style={{ fontSize: '0.7rem', color: config.primary, fontWeight: 900 }}>CHIEF OFFICER</div>
-                        </div>
-                        <LogOut size={16} color="var(--text-muted)" style={{ cursor: 'pointer' }} onClick={() => navigate('/')} />
-                    </div>
+
                 </div>
             </motion.aside>
 
@@ -351,6 +357,48 @@ const PortalLayout = ({ portalName, menuItems }) => {
                     >
                         <Outlet />
                     </motion.div>
+                </AnimatePresence>
+
+                {/* Global Queue Notification Toast (USER portal only) */}
+                <AnimatePresence>
+                    {queueCtx?.showToast && (
+                        <motion.div
+                            initial={{ opacity: 0, y: -30 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -30 }}
+                            style={{
+                                position: 'fixed',
+                                top: '24px',
+                                left: '50%',
+                                transform: 'translateX(-50%)',
+                                zIndex: 1100,
+                                background: 'linear-gradient(135deg, #065f46 0%, #047857 100%)',
+                                color: 'white',
+                                padding: '16px 28px',
+                                borderRadius: '16px',
+                                boxShadow: '0 20px 40px rgba(0,0,0,0.25)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '14px',
+                                maxWidth: '480px',
+                                width: '90vw'
+                            }}
+                        >
+                            <div style={{ background: 'rgba(255,255,255,0.2)', padding: '10px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                <BellRing size={22} />
+                            </div>
+                            <div style={{ flex: 1 }}>
+                                <div style={{ fontWeight: 800, fontSize: '0.95rem' }}>🔔 You're Next!</div>
+                                <div style={{ fontSize: '0.8rem', opacity: 0.9, marginTop: '2px' }}>Dr. Sarah Jenkins is ready for your consultation. Please proceed to ER Unit B.</div>
+                            </div>
+                            <button
+                                onClick={() => queueCtx.setShowToast(false)}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: 'white', opacity: 0.7 }}
+                            >
+                                <XIcon size={18} />
+                            </button>
+                        </motion.div>
+                    )}
                 </AnimatePresence>
             </main>
         </div>
