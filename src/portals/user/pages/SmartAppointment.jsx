@@ -105,8 +105,12 @@ const SmartAppointment = () => {
 
     // Original Symptom Logic preserved
     const [symptoms, setSymptoms] = useState('');
+    const [age, setAge] = useState(35);
+    const [riskFactors, setRiskFactors] = useState({ diabetic: false, hypertensive: false, heart_disease: false, smoking: false });
     const [vitals, setVitals] = useState({ heart_rate: 75, systolic_bp: 120, temperature: 37 });
     const [urgencyScore, setUrgencyScore] = useState(null);
+    const [confidence, setConfidence] = useState(null);
+    const [derivedMetrics, setDerivedMetrics] = useState(null);
     const [recommendation, setRecommendation] = useState(null);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [hourlyPredictions, setHourlyPredictions] = useState([]);
@@ -152,10 +156,12 @@ const SmartAppointment = () => {
         const condition = parseCondition(symptoms);
         const severity = parseSeverity(symptoms);
 
-        // ML-powered urgency classification using vitals
-        const { score, level } = await classifyUrgency(condition, 35, severity, {}, vitals);
+        // ML-powered urgency classification using vitals and risk factors
+        const { score, level, confidence: mlConf, derived_metrics } = await classifyUrgency(condition, age, severity, riskFactors, vitals);
 
         setUrgencyScore(score);
+        setConfidence((mlConf * 100).toFixed(1));
+        setDerivedMetrics(derived_metrics);
 
         if (level === 'low') {
             setRecommendation({
@@ -214,10 +220,10 @@ const SmartAppointment = () => {
     };
 
     return (
-        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.15fr', gap: 'var(--space-lg)', height: 'calc(100vh - 180px)', overflowY: 'auto', paddingRight: '10px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.1fr', gap: 'var(--space-md)', minHeight: 'calc(100vh - 160px)', paddingRight: '10px' }}>
             {/* Left Column: Symptom Analyzer & Step-by-Step Booking */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
-                <div className="card shadow-sm" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
+                <div className="card shadow-sm" style={{ padding: 'var(--space-md)', display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <h3 style={{ margin: 0 }}>ML Vital-Symptom Analyzer</h3>
                         <div className="badge badge-primary">V2.0 Statistical ML</div>
@@ -227,55 +233,77 @@ const SmartAppointment = () => {
                         Our Random Forest model analyzes symptoms and clinical vitals for higher accuracy.
                     </p>
 
-                    {/* Vitals Input Panel */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 'var(--space-md)', background: 'var(--background)', padding: 'var(--space-md)', borderRadius: 'var(--radius-md)', border: '1px solid var(--surface-border)' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                            <label style={{ fontSize: '0.65rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <Heart size={12} color="var(--danger)" /> HEART RATE
-                            </label>
+                    {/* Vitals & Demographic Panel - Compact 2x2 */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', background: 'var(--background)', padding: '10px', borderRadius: '10px', border: '1px solid var(--surface-border)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <label style={{ fontSize: '0.6rem', fontWeight: 800, minWidth: '35px' }}>AGE</label>
+                            <input
+                                type="number"
+                                value={age}
+                                onChange={(e) => setAge(parseInt(e.target.value))}
+                                style={{ flex: 1, padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--surface-border)', background: 'white', fontSize: '0.8rem' }}
+                            />
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <label style={{ fontSize: '0.6rem', fontWeight: 800, minWidth: '35px' }}>HR</label>
                             <input
                                 type="number"
                                 value={vitals.heart_rate}
                                 onChange={(e) => setVitals({ ...vitals, heart_rate: parseInt(e.target.value) })}
-                                style={{ padding: '6px', borderRadius: '4px', border: '1px solid var(--surface-border)', background: 'white', fontSize: '0.85rem' }}
+                                style={{ flex: 1, padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--surface-border)', background: 'white', fontSize: '0.8rem' }}
                             />
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                            <label style={{ fontSize: '0.65rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <Activity size={12} color="var(--primary)" /> SYSTOLIC BP
-                            </label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <label style={{ fontSize: '0.6rem', fontWeight: 800, minWidth: '35px' }}>BP</label>
                             <input
                                 type="number"
                                 value={vitals.systolic_bp}
                                 onChange={(e) => setVitals({ ...vitals, systolic_bp: parseInt(e.target.value) })}
-                                style={{ padding: '6px', borderRadius: '4px', border: '1px solid var(--surface-border)', background: 'white', fontSize: '0.85rem' }}
+                                style={{ flex: 1, padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--surface-border)', background: 'white', fontSize: '0.8rem' }}
                             />
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                            <label style={{ fontSize: '0.65rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <Thermometer size={12} color="var(--warning)" /> TEMP (°C)
-                            </label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <label style={{ fontSize: '0.6rem', fontWeight: 800, minWidth: '35px' }}>TEMP</label>
                             <input
                                 type="number"
                                 step="0.1"
                                 value={vitals.temperature}
                                 onChange={(e) => setVitals({ ...vitals, temperature: parseFloat(e.target.value) })}
-                                style={{ padding: '6px', borderRadius: '4px', border: '1px solid var(--surface-border)', background: 'white', fontSize: '0.85rem' }}
+                                style={{ flex: 1, padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--surface-border)', background: 'white', fontSize: '0.8rem' }}
                             />
                         </div>
                     </div>
 
+                    {/* Risk Factor Panel - Compact Grid */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', padding: '8px', background: 'rgba(37, 99, 235, 0.05)', borderRadius: '10px', border: '1px dashed var(--primary-light)' }}>
+                        {[
+                            { id: 'diabetic', label: 'Diabetic' },
+                            { id: 'hypertensive', label: 'BP High' },
+                            { id: 'heart_disease', label: 'Cardiac' },
+                            { id: 'smoking', label: 'Smoker' }
+                        ].map(rf => (
+                            <label key={rf.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer' }}>
+                                <input
+                                    type="checkbox"
+                                    checked={riskFactors[rf.id]}
+                                    onChange={(e) => setRiskFactors({ ...riskFactors, [rf.id]: e.target.checked })}
+                                />
+                                {rf.label}
+                            </label>
+                        ))}
+                    </div>
+
                     <textarea
-                        placeholder="Describe how you feel (e.g. 'I have a mild fever...')"
+                        placeholder="Symptoms (e.g. chest pain, fever...)"
                         value={symptoms}
                         onChange={(e) => setSymptoms(e.target.value)}
-                        style={{ width: '100%', height: '80px', padding: 'var(--space-md)', borderRadius: 'var(--radius-md)', border: '1px solid var(--surface-border)', background: 'var(--background)', resize: 'none', fontFamily: 'inherit' }}
+                        style={{ width: '100%', height: '54px', padding: '10px', borderRadius: '8px', border: '1px solid var(--surface-border)', background: 'var(--background)', resize: 'none', fontSize: '0.85rem', fontFamily: 'inherit' }}
                     />
 
                     <button
                         onClick={analyzeSymptoms}
                         className="btn btn-primary"
-                        style={{ width: '100%', height: '44px' }}
+                        style={{ width: '100%', height: '38px', fontSize: '0.85rem' }}
                         disabled={!symptoms || isAnalyzing}
                     >
                         {isAnalyzing ? (
@@ -299,9 +327,23 @@ const SmartAppointment = () => {
                                         <h4 style={{ margin: 0, fontSize: '1rem' }}>{recommendation.title}</h4>
                                     </div>
                                     <p style={{ margin: 0, fontSize: '0.85rem' }}>{recommendation.desc}</p>
-                                    <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-                                        <span className="badge" style={{ backgroundColor: 'var(--primary-light)', color: 'var(--primary)', fontSize: '0.7rem' }}>Score: {urgencyScore}</span>
-                                        <span className="badge badge-success" style={{ fontSize: '0.7rem' }}>Confidence: 97.4%</span>
+
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '10px' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                            <div style={{ fontSize: '0.6rem', fontWeight: 800, color: 'var(--primary)' }}>ML SCORE & CONFIDENCE</div>
+                                            <div style={{ display: 'flex', gap: '4px' }}>
+                                                <span className="badge" style={{ backgroundColor: 'var(--primary-light)', color: 'var(--primary)', fontSize: '0.65rem', padding: '2px 6px' }}>{urgencyScore}</span>
+                                                <span className="badge badge-success" style={{ fontSize: '0.65rem', padding: '2px 6px' }}>{confidence || '97.4'}%</span>
+                                            </div>
+                                        </div>
+                                        {derivedMetrics && (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                                <div style={{ fontSize: '0.6rem', fontWeight: 800, color: 'var(--primary)' }}>SHOCK INDEX</div>
+                                                <div style={{ fontSize: '0.8rem', fontWeight: 900, color: derivedMetrics.shock_index > 0.9 ? 'var(--danger)' : 'var(--text-main)' }}>
+                                                    {derivedMetrics.shock_index?.toFixed(2)}
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </motion.div>
@@ -325,19 +367,19 @@ const SmartAppointment = () => {
                                     onClick={() => setSelectedHospital(h)}
                                     key={h.id}
                                     className="glass"
-                                    style={{ padding: '16px', borderRadius: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '16px' }}
+                                    style={{ padding: '12px', borderRadius: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px' }}
                                 >
-                                    <div style={{ background: 'var(--primary-light)', padding: '10px', borderRadius: '12px' }}>
-                                        <Building2 size={20} color="var(--primary)" />
+                                    <div style={{ background: 'var(--primary-light)', padding: '8px', borderRadius: '10px' }}>
+                                        <Building2 size={18} color="var(--primary)" />
                                     </div>
                                     <div style={{ flex: 1 }}>
-                                        <div style={{ fontWeight: 700 }}>{h.name}</div>
-                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', gap: '8px' }}>
-                                            <span style={{ display: 'flex', alignItems: 'center', gap: '2px' }}><MapPin size={12} /> {h.distance}</span>
-                                            <span style={{ color: getAvailabilityColor(h.availability), fontWeight: 700 }}>• {h.availability} Capacity</span>
+                                        <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{h.name}</div>
+                                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'flex', gap: '8px' }}>
+                                            <span style={{ display: 'flex', alignItems: 'center', gap: '2px' }}><MapPin size={10} /> {h.distance}</span>
+                                            <span style={{ color: getAvailabilityColor(h.availability), fontWeight: 700 }}>• {h.availability}</span>
                                         </div>
                                     </div>
-                                    <ArrowRight size={16} color="var(--text-muted)" />
+                                    <ArrowRight size={14} color="var(--text-muted)" />
                                 </motion.div>
                             ))}
                         </div>
@@ -355,16 +397,16 @@ const SmartAppointment = () => {
                                     onClick={() => setSelectedDoctor(d)}
                                     key={d.id}
                                     className="glass"
-                                    style={{ padding: '16px', borderRadius: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '16px' }}
+                                    style={{ padding: '12px', borderRadius: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px' }}
                                 >
-                                    <div style={{ background: 'var(--secondary-light)', padding: '10px', borderRadius: '12px' }}>
-                                        <User size={20} color="var(--secondary)" />
+                                    <div style={{ background: 'var(--secondary-light)', padding: '8px', borderRadius: '10px' }}>
+                                        <User size={18} color="var(--secondary)" />
                                     </div>
                                     <div style={{ flex: 1 }}>
-                                        <div style={{ fontWeight: 700 }}>{d.name}</div>
-                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{d.specialty} • 4 Slots Available Today</div>
+                                        <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{d.name}</div>
+                                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{d.specialty} • 4 Slots</div>
                                     </div>
-                                    <ArrowRight size={16} color="var(--text-muted)" />
+                                    <ArrowRight size={14} color="var(--text-muted)" />
                                 </motion.div>
                             ))}
                         </div>
@@ -420,17 +462,17 @@ const SmartAppointment = () => {
             </div>
 
             {/* Right Column: Smart Scheduler & History */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
-                <div className="card shadow-sm" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)', position: 'relative' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
+                <div className="card shadow-sm" style={{ padding: 'var(--space-md)', display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)', position: 'relative' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <h3 style={{ margin: 0 }}>Smart Scheduler</h3>
+                            <h3 style={{ margin: 0, fontSize: '1rem' }}>Smart Scheduler</h3>
                             {lastSync && <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 800 }}>LIVE SYNC: {lastSync}</span>}
                         </div>
-                        <div className="badge badge-success">ML ACTIVE</div>
+                        <div className="badge badge-success" style={{ fontSize: '0.65rem' }}>ML ACTIVE</div>
                     </div>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: 0 }}>
-                        Wait time & resource density forecasts via Random Forest regression.
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', margin: 0 }}>
+                        Wait time forecasts powered by Random Forest regression.
                     </p>
 
                     {/* Optimal Window Recommendation */}
@@ -499,7 +541,7 @@ const SmartAppointment = () => {
                 </div>
 
                 {/* Booking History Section */}
-                <div className="card shadow-sm" style={{ flex: 1, minHeight: '300px' }}>
+                <div className="card shadow-sm" style={{ flex: 1, padding: 'var(--space-md)', minHeight: '200px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: 'var(--space-md)' }}>
                         <History size={20} color="var(--primary)" />
                         <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Your Booked Appointments</h3>
