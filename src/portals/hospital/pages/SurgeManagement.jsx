@@ -1,385 +1,550 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import {
-    ShieldAlert, Zap, Users, BarChart, AlertTriangle,
-    ArrowRight, CornerUpRight, Info, X, Activity,
-    Thermometer, Flame, Shield, Globe, MapPin,
-    CheckCircle2, Loader2, TrendingUp, Clock
-} from 'lucide-react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    AreaChart, Area, XAxis, YAxis, CartesianGrid,
-    Tooltip, ResponsiveContainer
+    ShieldAlert, Zap, Users, BarChart, AlertTriangle, ArrowRight, CornerUpRight,
+    Info, X, Activity, Thermometer, Flame, Shield, Globe, MapPin,
+    CheckCircle2, Loader2, TrendingUp, Clock, AlertCircle, RefreshCw,
+    Search, Filter, ChevronRight, TrendingDown, LayoutGrid, List
+} from 'lucide-react';
+import {
+    LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+    AreaChart, Area, PieChart, Pie, Cell
 } from 'recharts';
 import { getHospitals, getHospitalById } from '../../../services/api';
-import { getSurgeLevel, getSurgeColor } from '../../../../conduit-ml';
 
-const chartData = [
-    { time: '08:00', icu: 12, overflow: 5, redistribute: 2 },
-    { time: '09:00', icu: 18, overflow: 8, redistribute: 4 },
-    { time: '10:00', icu: 25, overflow: 15, redistribute: 8 },
-    { time: '11:00', icu: 32, overflow: 22, redistribute: 15 },
-    { time: '12:00', icu: 45, overflow: 35, redistribute: 28 },
-    { time: '13:00', icu: 38, overflow: 30, redistribute: 22 },
-];
+const COLORS = ['#E63946', '#f59e0b', '#3b82f6', '#10b981'];
 
-const SurgeManagement = () => {
-    const [surgeActive, setSurgeActive] = useState(false);
-    const [strictness, setStrictness] = useState(50); // 0-100
-    const [activeDialog, setActiveDialog] = useState(null);
-    const [alertMessage, setAlertMessage] = useState({ title: '', body: '', icon: null });
-    const [isProcessing, setIsProcessing] = useState(false);
-
+const HospitalSurgeManagement = () => {
     const [hospital, setHospital] = useState(null);
     const [hospitals, setHospitals] = useState([]);
+    const [surgeActive, setSurgeActive] = useState(false);
+    const [triageStrictness, setTriageStrictness] = useState(1);
     const [isLoading, setIsLoading] = useState(true);
+    const [activeTab, setActiveTab] = useState('overview');
+    const [showSiren, setShowSiren] = useState(false);
+    const [activeDialog, setActiveDialog] = useState(null);
 
-    useEffect(() => {
-        const fetchData = async () => {
-            setIsLoading(true);
-            const user = JSON.parse(localStorage.getItem('user'));
-            const hospitalId = user?.hospitalId || '67b7f1e737bd488820c3ccf2';
-
-            const [localData, allData] = await Promise.all([
-                getHospitalById(hospitalId),
-                getHospitals()
-            ]);
-
-            setHospital(localData);
-            setHospitals(allData || []);
-            setSurgeActive(localData?.isSurgeActive || false);
-            setIsLoading(false);
-        };
-        fetchData();
-    }, []);
-
-    // Compute regional aggregate surge level using ML
-    const regionalSurge = useMemo(() => {
-        if (!hospitals.length) return { level: 'STABLE', avgLoad: 0, avgWait: 0 };
-        const avgLoad = Math.round(hospitals.reduce((s, h) => s + (h.occupancy || h.icuAvailability || 50), 0) / hospitals.length);
-        const avgWait = Math.round(hospitals.reduce((s, h) => s + (h.erWaitTime || 0), 0) / hospitals.length);
-        const level = getSurgeLevel(avgLoad, avgWait);
-        return { level, avgLoad, avgWait };
-    }, [hospitals]);
-
-    const showAlert = (title, body, icon = <CheckCircle2 size={40} color="var(--success)" />) => {
-        setAlertMessage({ title, body, icon });
-        setActiveDialog('alert');
+    // Dialog messages config
+    const dialogMessages = {
+        allocate: { title: 'Resource Allocated', description: 'Bed and personnel shifts have been confirmed for the requesting unit. EMS has been notified.', icon: CheckCircle2, color: '#10b981' },
+        simulate: { title: 'Simulation Complete', description: 'Network load-balancing simulation indicates a 14% reduction in peak-hour pressure after redistribution.', icon: Activity, color: '#3b82f6' },
+        target: { title: 'Intake Target Locked', description: 'St. Mary\'s Proxy has been designated as the primary intake overflow. Data synchronization in progress.', icon: Shield, color: '#E63946' },
+        swift: { title: 'SWIFT Optimization Active', description: 'Forecasting engine has rerouted 4 upcoming high-acuity cases to specialized trauma centers.', icon: Zap, color: '#E63946' }
     };
 
-    const handleSurgeToggle = () => {
-        setIsProcessing(true);
+    // Dynamic Button States
+    const [actionStates, setActionStates] = useState({});
+
+    const handleAction = (id, type) => {
+        setActionStates(prev => ({ ...prev, [id]: 'processing' }));
         setTimeout(() => {
-            const newState = !surgeActive;
-            setSurgeActive(newState);
-            setIsProcessing(false);
-            showAlert(
-                newState ? 'SURGE PROTOCOL ACTIVE' : 'Surge Mode Deactivated',
-                newState ? 'Advanced triage and resource mobilization initiated.' : 'Hospital returning to standard clinical protocols.',
-                newState ? <Flame size={40} color="var(--danger)" /> : <Shield size={40} color="var(--primary)" />
-            );
+            setActionStates(prev => ({ ...prev, [id]: 'completed' }));
+            setActiveDialog(type || id.split('-')[0]); // Fallback to prefix
+            setTimeout(() => {
+                setActionStates(prev => ({ ...prev, [id]: null }));
+            }, 3000);
         }, 1500);
     };
 
-    const handleRedistribute = (hospitalName) => {
-        showAlert(
-            'Redistribution Initiated',
-            `Diverting incoming ESI 3-5 cases to ${hospitalName}. Traffic optimization synced with EMS.`,
-            <Globe size={40} color="var(--primary)" />
-        );
-    };
-
-    const incomingPatients = [
-        { id: 1, name: 'ESI 2: Cardiac', eta: '4m', status: 'En Route' },
-        { id: 2, name: 'ESI 3: Resp Dist', eta: '8m', status: 'Diverting' },
-        { id: 3, name: 'ESI 1: Trauma', eta: '2m', status: 'Critical' },
-        { id: 4, name: 'ESI 4: Minor', eta: '15m', status: 'Delayed' },
+    // Mock Forecast Data
+    const forecastData = [
+        { time: '00:00', actual: 45, forecast: 42 },
+        { time: '04:00', actual: 38, forecast: 40 },
+        { time: '08:00', actual: 65, forecast: 62 },
+        { time: '12:00', actual: 88, forecast: 85 },
+        { time: '16:00', actual: 95, forecast: 92 },
+        { time: '20:00', actual: null, forecast: 110 },
+        { time: '23:00', actual: null, forecast: 98 },
     ];
 
-    if (isLoading || !hospital) return <div className="loading-container">Synchronizing Surge Protocols...</div>;
+    const causeData = [
+        { name: 'Seasonal Flu', value: 45 },
+        { name: 'Accident/Trauma', value: 25 },
+        { name: 'Infrastructure Failure', value: 15 },
+        { name: 'Other', value: 15 },
+    ];
 
-    const isLocalSurge = hospital.occupancy > 90 || surgeActive;
-    const isRegionalSurge = regionalSurge.level === 'CRITICAL';
+    const urgentRequests = [
+        { id: 1, type: 'ICU', urgency: 'CRITICAL', patient: 'ID-8821', time: '2m ago' },
+        { id: 2, type: 'VENTILATOR', urgency: 'HIGH', patient: 'ID-9012', time: '5m ago' },
+        { id: 3, type: 'OR', urgency: 'CRITICAL', patient: 'ID-1102', time: '12m ago' },
+    ];
 
-    const getStrictnessLabel = (val) => {
-        if (val < 30) return { label: 'OPTIMIZED', color: 'var(--success)' };
-        if (val < 70) return { label: 'CONSERVATIVE', color: 'var(--warning)' };
-        return { label: 'STRICT / CRITICAL', color: 'var(--danger)' };
+    useEffect(() => {
+        const loadInitialData = async () => {
+            try {
+                const [allHospitals, myHospital] = await Promise.all([
+                    getHospitals(),
+                    getHospitalById('67936a29ec6b074477ca3a07') // Using a mock ID from codebase
+                ]);
+                setHospitals(allHospitals);
+                setHospital(myHospital || allHospitals[0]);
+            } catch (err) {
+                console.error("Failed to load hospital data", err);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        loadInitialData();
+    }, []);
+
+    const handleSurgeToggle = () => {
+        if (!surgeActive) {
+            setShowSiren(true);
+            setTimeout(() => {
+                setSurgeActive(true);
+                setShowSiren(false);
+            }, 3000);
+        } else {
+            setSurgeActive(false);
+        }
     };
 
-    const statusObj = getStrictnessLabel(strictness);
+    if (isLoading) return (
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '400px' }}>
+            <Loader2 className="animate-spin" size={48} color="var(--primary)" />
+        </div>
+    );
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
-            {/* Surge Activation Header */}
-            <motion.div
-                animate={{
-                    background: isLocalSurge ? 'var(--danger)' : 'var(--background)',
-                    color: isLocalSurge ? 'white' : 'var(--text-main)',
-                    borderColor: isLocalSurge ? 'var(--danger)' : 'var(--surface-border)'
-                }}
-                className="card"
-                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 'var(--space-xl)', border: '2px solid transparent' }}
-            >
-                <div style={{ display: 'flex', gap: 'var(--space-xl)', alignItems: 'center' }}>
-                    {isLocalSurge ? <Flame size={48} className="animate-pulse" /> : <ShieldAlert size={48} color="var(--primary)" />}
-                    <div>
-                        <h2 style={{ margin: 0 }}>SURGE MODE: {isLocalSurge ? 'ACTIVE' : isRegionalSurge ? 'WATCH (NETWORK)' : 'READY'}</h2>
-                        <p style={{ margin: '4px 0 0 0', opacity: 0.9 }}>
-                            Hospital Occupancy: {hospital.occupancy}%. Regional Load (ML): {regionalSurge.avgLoad}%.
-                        </p>
-                    </div>
-                </div>
-                <div style={{ display: 'flex', gap: '12px' }}>
-                    <button
-                        className={`btn ${isLocalSurge ? 'glass' : 'btn-primary'}`}
-                        style={{ color: isLocalSurge ? 'white' : 'white', border: isLocalSurge ? '1px solid white' : 'none', padding: '0.8rem 1.5rem', fontWeight: 700 }}
-                        onClick={handleSurgeToggle}
-                        disabled={isProcessing}
-                    >
-                        {isProcessing ? <Loader2 className="animate-spin" /> : isLocalSurge ? 'DEACTIVATE LOCAL' : 'ACTIVATE SURGE'}
-                    </button>
-                    {isRegionalSurge && (
-                        <div className="pulse-danger" style={{ background: 'white', color: 'var(--danger)', padding: '0.8rem 1.2rem', borderRadius: '8px', fontWeight: 900, fontSize: '0.8rem' }}>
-                            NETWORK CRITICAL
-                        </div>
-                    )}
-                </div>
-            </motion.div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)', padding: '20px' }}>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 'var(--space-lg)' }}>
-                {/* Surge Cause Analysis */}
-                <div className="card">
-                    <h3 style={{ marginBottom: 'var(--space-lg)', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <BarChart size={20} color="var(--primary)" /> Incoming Surge Forecast (ML Driven)
-                    </h3>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
-                        <div className="card glass" style={{ background: 'var(--background)', padding: 'var(--space-md)' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-sm)' }}>
-                                <span style={{ fontWeight: 600 }}>Predicted Influx (Next 2h)</span>
-                                <span style={{ color: isRegionalSurge ? 'var(--danger)' : 'var(--warning)', fontWeight: 700 }}>+{Math.round(regionalSurge.avgLoad / 4 + 10)} Patients</span>
-                            </div>
-                            <div style={{ height: '8px', background: 'var(--surface-border)', borderRadius: '4px', overflow: 'hidden' }}>
-                                <div style={{ width: `${regionalSurge.avgLoad}%`, height: '100%', background: isRegionalSurge ? 'var(--danger)' : 'var(--primary)' }} />
-                            </div>
-                        </div>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-md)' }}>
-                            <div className="card" style={{ background: 'var(--primary-light)', color: 'var(--primary)', border: 'none' }}>
-                                <div style={{ fontSize: '0.75rem', fontWeight: 600 }}>REROUTE CAPACITY</div>
-                                <div style={{ fontSize: '1.5rem', fontWeight: 800 }}>{Math.max(0, 20 - Math.round(hospital.occupancy / 5))}/h</div>
-                            </div>
-                            <div className="card" style={{ background: 'rgba(234, 179, 8, 0.1)', color: 'var(--warning)', border: 'none' }}>
-                                <div style={{ fontSize: '0.75rem', fontWeight: 600 }}>VOLUNTARY CANCELLATIONS</div>
-                                <div style={{ fontSize: '1.5rem', fontWeight: 800 }}>15%</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Action Panel */}
-                <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
-                    <h3 style={{ margin: 0 }}>Emergency Expansion</h3>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Deploy temporary resources and tighten triage protocols.</p>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
-                        <button className="btn glass" style={{ justifyContent: 'space-between', border: '1px solid var(--surface-border)' }} onClick={() => showAlert('Protocol Updated', 'Strict Urgency-Only triage initiated.')}>
-                            <span>Strict Triage (Urgency Only)</span>
-                            <CornerUpRight size={16} />
-                        </button>
-                        <button className="btn glass" style={{ justifyContent: 'space-between', border: '1px solid var(--surface-border)' }} onClick={() => showAlert('Facility Expansion', 'Day-ward converted to ER-B. 12 beds added.')}>
-                            <span>Convert Day-Ward to ER-B</span>
-                            <CornerUpRight size={16} />
-                        </button>
-                        <button className="btn glass" style={{ justifyContent: 'space-between', border: '1px solid var(--surface-border)' }} onClick={() => showAlert('ICU Locked', 'Access restricted to ESI 1/2 critical cases only.')}>
-                            <span>Lock ICU (Critical Only)</span>
-                            <CornerUpRight size={16} />
-                        </button>
-                    </div>
-
-                    <div className="card" style={{ background: 'var(--text-main)', color: 'white', marginTop: 'auto', padding: 'var(--space-md)' }}>
-                        <div style={{ display: 'flex', gap: 'var(--space-sm)', alignItems: 'center', marginBottom: 'var(--space-sm)' }}>
-                            <Zap size={18} color="var(--warning)" />
-                            <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>Network Support</span>
-                        </div>
-                        <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.8 }}>
-                            Regional ML indicates <strong>{regionalSurge.level}</strong> demand. We recommend cross-hospital transfer for stable patients.
-                        </p>
-                    </div>
-                </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 'var(--space-lg)' }}>
-                {/* Advanced Diagnostics Graph */}
-                <div className="card">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-lg)' }}>
-                        <h3 style={{ margin: 0 }}>Surge Impact Analytics</h3>
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                            <span className="badge badge-danger">ICU REQS</span>
-                            <span className="badge badge-warning">OVERFLOW</span>
-                        </div>
-                    </div>
-                    <div style={{ height: '320px', width: '100%' }}>
-                        <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={chartData}>
-                                <defs>
-                                    <linearGradient id="colorIcu" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} />
-                                        <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
-                                    </linearGradient>
-                                    <linearGradient id="colorOverflow" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#f97316" stopOpacity={0.3} />
-                                        <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
-                                    </linearGradient>
-                                </defs>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--surface-border)" />
-                                <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#666' }} />
-                                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#666' }} />
-                                <Tooltip
-                                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', background: 'white', color: 'black' }}
-                                />
-                                <Area type="monotone" dataKey="icu" stroke="#ef4444" fillOpacity={1} fill="url(#colorIcu)" strokeWidth={3} />
-                                <Area type="monotone" dataKey="overflow" stroke="#f97316" fillOpacity={1} fill="url(#colorOverflow)" strokeWidth={3} />
-                                <Area type="monotone" dataKey="redistribute" stroke="var(--primary)" fill="transparent" strokeWidth={2} strokeDasharray="5 5" />
-                            </AreaChart>
-                        </ResponsiveContainer>
-                    </div>
-                </div>
-
-                {/* Strictness & Triage Control */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
-                    <div className="card">
-                        <h3 style={{ margin: '0 0 var(--space-md) 0' }}>Triage Strictness</h3>
-                        <div style={{ background: 'var(--background)', padding: 'var(--space-lg)', borderRadius: '16px', textAlign: 'center' }}>
-                            <div style={{ fontSize: '1.2rem', fontWeight: 800, color: statusObj.color, marginBottom: 'var(--space-md)' }}>
-                                {statusObj.label}
-                            </div>
-                            <input
-                                type="range"
-                                min="0" max="100"
-                                value={strictness}
-                                onChange={(e) => setStrictness(parseInt(e.target.value))}
-                                style={{ width: '100%', cursor: 'pointer', height: '8px', borderRadius: '4px', accentColor: statusObj.color }}
-                            />
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '8px', fontWeight: 700 }}>
-                                <span>RELAXED</span>
-                                <span>BALANCED</span>
-                                <span>CRITICAL</span>
-                            </div>
-                        </div>
-                        <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: 'var(--space-md)' }}>
-                            Adjusting strictness automatically updates ER prioritization algorithms for all incoming clinical cases.
-                        </p>
-                    </div>
-
-                    <div className="card" style={{ background: 'var(--text-main)', color: 'white' }}>
-                        <div style={{ display: 'flex', gap: 'var(--space-md)', alignItems: 'center', marginBottom: 'var(--space-md)' }}>
-                            <TrendingUp color="#22c55e" size={24} />
-                            <h4 style={{ margin: 0 }}>Surge Cause Analysis</h4>
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                                <span style={{ opacity: 0.7 }}>Regional Incident:</span>
-                                <span style={{ fontWeight: 700 }}>45% Impact</span>
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                                <span style={{ opacity: 0.7 }}>Post-Festival Flux:</span>
-                                <span style={{ fontWeight: 700 }}>22% Impact</span>
-                            </div>
-                            <div style={{ height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', overflow: 'hidden' }}>
-                                <motion.div animate={{ width: '67%' }} style={{ height: '100%', background: '#22c55e' }} />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-lg)' }}>
-                {/* Hospital Redistribution Hub */}
-                <div className="card">
-                    <h3 style={{ marginBottom: 'var(--space-lg)' }}>Hospital Redistribution Hub</h3>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'var(--space-md)' }}>
-                        {hospitals.slice(0, 3).map((hosp) => (
-                            <div key={hosp._id || hosp.name} className="glass" style={{ padding: 'var(--space-md)', borderRadius: '16px', textAlign: 'center' }}>
-                                <MapPin size={24} color="var(--primary)" style={{ marginBottom: '8px' }} />
-                                <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>{hosp.name}</div>
-                                <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginBottom: '12px' }}>{hosp.type || 'Tertiary'} • {hosp.occupancy || 50}%</div>
-                                <button
-                                    className="btn btn-primary"
-                                    style={{ width: '100%', fontSize: '0.65rem', padding: '6px' }}
-                                    onClick={() => handleRedistribute(hosp.name)}
-                                >
-                                    REDISTRIBUTE
-                                </button>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Incoming Patient Feed */}
-                <div className="card">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-lg)' }}>
-                        <h3 style={{ margin: 0 }}>Live Incoming Feed</h3>
-                        <Activity size={18} className="animate-pulse" color="#ef4444" />
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
-                        {incomingPatients.map((p) => (
-                            <div key={p.id} className="glass" style={{ padding: '10px 16px', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                                    <Clock size={16} color="var(--text-muted)" />
-                                    <div>
-                                        <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>{p.name}</div>
-                                        <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>ETA: {p.eta} • {p.status}</div>
-                                    </div>
-                                </div>
-                                <div className={`badge ${p.status === 'Critical' ? 'badge-danger' : 'badge-primary'}`} style={{ fontSize: '0.6rem' }}>
-                                    {p.status.toUpperCase()}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </div>
-
-            <div className="card glass" style={{ border: `2px dashed ${isLocalSurge ? '#ef4444' : 'var(--primary)'}`, display: 'flex', gap: 'var(--space-md)', alignItems: 'center', padding: 'var(--space-md)' }}>
-                <Info size={24} color={isLocalSurge ? '#ef4444' : 'var(--primary)'} />
-                <p style={{ margin: 0, fontSize: '0.85rem' }}>
-                    <strong>Network Insight:</strong> Regional average wait is currently {regionalSurge.avgWait}m. Diverting non-critical arrivals can reduce local load by 15%.
-                </p>
-            </div>
-
-            {/* Centralized Alert Modal */}
+            {/* ALERT OVERLAY */}
             <AnimatePresence>
-                {activeDialog === 'alert' && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={modalOverlayStyle} onClick={() => setActiveDialog(null)}>
-                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} style={{ ...modalContentStyle, textAlign: 'center' }} onClick={e => e.stopPropagation()}>
-                            <div style={{ marginBottom: 'var(--space-md)' }}>
-                                {alertMessage.icon}
-                            </div>
-                            <h3 style={{ margin: '0 0 8px 0' }}>{alertMessage.title}</h3>
-                            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: 'var(--space-xl)' }}>
-                                {alertMessage.body}
-                            </p>
-                            <button className="btn btn-primary" style={{ width: '100%' }} onClick={() => setActiveDialog(null)}>UNDERSTOOD</button>
+                {showSiren && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        style={{
+                            position: 'fixed', inset: 0, zIndex: 9999,
+                            background: 'rgba(230, 57, 70, 0.4)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center'
+                        }}
+                    >
+                        <motion.div
+                            animate={{ scale: [1, 1.2, 1], rotate: [0, 5, -5, 0] }}
+                            transition={{ repeat: Infinity, duration: 0.5 }}
+                            style={{ textAlign: 'center', color: 'white' }}
+                        >
+                            <ShieldAlert size={120} strokeWidth={3} />
+                            <h1 style={{ fontSize: '4rem', fontWeight: 900, margin: 0 }}>INITIATING SURGE</h1>
                         </motion.div>
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            {/* ACTION POPUP DIALOG */}
+            <AnimatePresence>
+                {activeDialog && dialogMessages[activeDialog] && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        style={{
+                            position: 'fixed', inset: 0, zIndex: 10000,
+                            background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
+                        }}
+                        onClick={() => setActiveDialog(null)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9, y: 30 }}
+                            animate={{ scale: 1, y: 0 }}
+                            exit={{ scale: 0.9, y: 30 }}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                                background: 'white', borderRadius: '32px', padding: '40px',
+                                maxWidth: '450px', width: '100%', textAlign: 'center',
+                                boxShadow: '0 50px 100px rgba(0,0,0,0.4)', position: 'relative'
+                            }}
+                        >
+                            <div style={{
+                                width: '80px', height: '80px', borderRadius: '24px',
+                                background: `${dialogMessages[activeDialog].color}20`,
+                                color: dialogMessages[activeDialog].color,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                margin: '0 auto 24px'
+                            }}>
+                                {React.createElement(dialogMessages[activeDialog].icon, { size: 40 })}
+                            </div>
+                            <h2 style={{ fontSize: '1.8rem', fontWeight: 900, marginBottom: '12px', color: 'var(--primary)' }}>
+                                {dialogMessages[activeDialog].title}
+                            </h2>
+                            <p style={{ fontSize: '1rem', color: 'var(--text-muted)', lineHeight: 1.6, margin: '0 0 32px 0' }}>
+                                {dialogMessages[activeDialog].description}
+                            </p>
+                            <motion.button
+                                whileTap={{ scale: 0.95 }}
+                                onClick={() => setActiveDialog(null)}
+                                style={{
+                                    width: '100%', padding: '16px', borderRadius: '16px',
+                                    background: 'var(--primary)', color: 'white', border: 'none',
+                                    fontWeight: 900, fontSize: '1rem', cursor: 'pointer'
+                                }}
+                            >
+                                ACKNOWLEDGE
+                            </motion.button>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* COMMAND CENTER HEADER - VIBRANT RED */}
+            <motion.div
+                initial={{ y: -20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                style={{
+                    background: 'linear-gradient(135deg, #E63946 0%, #991b1b 100%)',
+                    borderRadius: '24px',
+                    padding: 'var(--space-xxl)',
+                    color: 'white',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    border: '1px solid rgba(255,255,255,0.3)',
+                    boxShadow: '0 20px 50px rgba(230, 57, 70, 0.4)'
+                }}
+            >
+                <motion.div
+                    animate={{ opacity: [0.1, 0.2, 0.1] }}
+                    transition={{ repeat: Infinity, duration: 2 }}
+                    style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle, rgba(255,255,255,0.2) 0%, transparent 70%)' }}
+                />
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative', zIndex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+                        <div style={{
+                            width: '80px', height: '80px', borderRadius: '24px',
+                            background: 'rgba(255,255,255,0.2)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            boxShadow: 'inset 0 0 15px rgba(255,255,255,0.2)'
+                        }}>
+                            <ShieldAlert size={40} className="pulse-alert" />
+                        </div>
+                        <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+                                <motion.div animate={{ opacity: [1, 0.4, 1] }} transition={{ repeat: Infinity, duration: 2 }} style={{ width: 10, height: 10, borderRadius: '50%', background: '#fff' }} />
+                                <span style={{ fontSize: '0.8rem', fontWeight: 900, opacity: 0.9, letterSpacing: '1px' }}>HOSPITAL COMMAND CENTER</span>
+                            </div>
+                            <h1 style={{ fontSize: '2.5rem', fontWeight: 900, margin: 0, letterSpacing: '-1.5px' }}>{hospital?.name || 'Network Central Command'}</h1>
+                        </div>
+                    </div>
+
+                    <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        <div style={{ fontSize: '0.9rem', fontWeight: 800, opacity: 0.8 }}>EMERGENCY OVERRIDE</div>
+                        <motion.button
+                            whileTap={{ opacity: 0.8 }}
+                            onClick={handleSurgeToggle}
+                            style={{
+                                background: surgeActive ? 'white' : 'rgba(255,255,255,0.1)',
+                                color: surgeActive ? '#E63946' : 'white',
+                                border: '2px solid rgba(255,255,255,0.3)',
+                                padding: '12px 30px',
+                                borderRadius: '15px',
+                                fontWeight: 900,
+                                fontSize: '1rem',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '10px',
+                                boxShadow: '0 10px 20px rgba(0,0,0,0.2)'
+                            }}
+                        >
+                            {surgeActive ? <><X size={20} /> DEACTIVATE SURGE</> : <><Flame size={20} /> ACTIVATE SURGE MODE</>}
+                        </motion.button>
+                    </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px', marginTop: '40px', position: 'relative', zIndex: 1 }}>
+                    {[
+                        { label: 'Network Stress', value: 'Critical', color: '#fff', icon: Activity },
+                        { label: 'ICU Availability', value: hospital?.availableICU > 0 ? `${hospital.availableICU} Beds` : 'Zero', color: '#fff', icon: Thermometer },
+                        { label: 'Triage Queue', value: '18 min avg', color: '#fff', icon: Clock },
+                        { label: 'Staff Load', value: 'High (92%)', color: '#fff', icon: Users },
+                    ].map((stat, i) => (
+                        <div key={stat.label} style={{ background: 'rgba(255,255,255,0.1)', padding: '20px', borderRadius: '18px', border: '1px solid rgba(255,255,255,0.2)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                <span style={{ fontSize: '0.75rem', fontWeight: 900, opacity: 0.7 }}>{stat.label.toUpperCase()}</span>
+                                <stat.icon size={16} />
+                            </div>
+                            <div style={{ fontSize: '1.5rem', fontWeight: 900 }}>{stat.value}</div>
+                        </div>
+                    ))}
+                </div>
+            </motion.div>
+
+            {/* MAIN DASHBOARD GRID */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.8fr', gap: 'var(--space-lg)' }}>
+
+                {/* LEFT COLUMN: CONTROLS & URGENT TICKER */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
+
+                    {/* Triage Strictness Slider */}
+                    <div className="card glass" style={{ padding: 'var(--space-xl)', border: '2px solid rgba(59, 130, 246, 0.2)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                            <h2 style={{ fontSize: '1.5rem', fontWeight: 900, margin: 0 }}>Triage Intensity</h2>
+                            <span className="badge" style={{ background: triageStrictness > 2 ? '#ef4444' : '#3b82f6', color: 'white' }}>LVL {triageStrictness}</span>
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                            <input
+                                type="range" min="1" max="4"
+                                value={triageStrictness}
+                                onChange={(e) => setTriageStrictness(parseInt(e.target.value))}
+                                style={{ width: '100%', height: '8px', accentColor: triageStrictness > 2 ? '#ef4444' : '#3b82f6' }}
+                            />
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', fontWeight: 900, color: 'var(--text-muted)' }}>
+                                <span>STANDARD</span>
+                                <span>MODERATE</span>
+                                <span>RESTRICTIVE</span>
+                                <span>CRITICAL ONLY</span>
+                            </div>
+                        </div>
+
+                        <div style={{ marginTop: '24px', padding: '16px', borderRadius: '14px', background: 'rgba(59, 130, 246, 0.05)', border: '1px solid rgba(59, 130, 246, 0.1)' }}>
+                            <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <Info size={16} />
+                                Impact Analysis: {triageStrictness === 4 ? 'Strictly trauma only. Redirecting all tier 3 cases.' : 'Managing standard admission rates.'}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Urgent ICU Request Ticker */}
+                    <div className="card glass" style={{ padding: 'var(--space-xl)', flex: 1 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                            <h2 style={{ fontSize: '1.5rem', fontWeight: 900, margin: 0 }}>Network ICU Requests</h2>
+                            <RefreshCw size={18} className="animate-spin" style={{ opacity: 0.3 }} />
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            {urgentRequests.map(req => (
+                                <motion.div
+                                    key={req.id}
+                                    whileHover={{ x: 5 }}
+                                    style={{
+                                        padding: '16px', borderRadius: '16px',
+                                        background: req.urgency === 'CRITICAL' ? 'rgba(239, 68, 68, 0.05)' : 'rgba(245, 158, 11, 0.05)',
+                                        border: `1px solid ${req.urgency === 'CRITICAL' ? '#ef444440' : '#f59e0b40'}`,
+                                        display: 'flex', alignItems: 'center', gap: '16px'
+                                    }}
+                                >
+                                    <div style={{
+                                        width: '40px', height: '40px', borderRadius: '12px',
+                                        background: req.urgency === 'CRITICAL' ? '#ef4444' : '#f59e0b',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white'
+                                    }}>
+                                        <AlertCircle size={20} />
+                                    </div>
+                                    <div style={{ flex: 1 }}>
+                                        <div style={{ fontWeight: 800, fontSize: '0.9rem' }}>{req.type} REQUIRED</div>
+                                        <div style={{ fontSize: '0.75rem', opacity: 0.6 }}>Patient {req.patient} • {req.time}</div>
+                                    </div>
+                                    <motion.button
+                                        whileTap={{ scale: 0.95 }}
+                                        onClick={() => handleAction(`allocate-${req.id}`, 'allocate')}
+                                        disabled={actionStates[`allocate-${req.id}`]}
+                                        style={{
+                                            background: actionStates[`allocate-${req.id}`] === 'completed' ? '#10b981' : 'var(--primary)',
+                                            padding: '8px 16px', borderRadius: '8px', color: 'white', border: 'none',
+                                            fontWeight: 900, fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px'
+                                        }}
+                                    >
+                                        {actionStates[`allocate-${req.id}`] === 'processing' ? <Loader2 size={12} className="animate-spin" /> :
+                                            actionStates[`allocate-${req.id}`] === 'completed' ? <CheckCircle2 size={12} /> : 'ALLOCATE'}
+                                    </motion.button>
+                                </motion.div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                {/* RIGHT COLUMN: FORECAST & REDISTRIBUTION */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
+
+                    {/* Incoming Patient Forecast */}
+                    <div className="card glass" style={{ padding: 'var(--space-xl)', height: '320px', display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
+                            <div>
+                                <h2 style={{ fontSize: '1.5rem', fontWeight: 900, margin: 0 }}>Patient Load Forecast</h2>
+                                <p style={{ margin: 0, opacity: 0.6, fontSize: '0.85rem' }}>ML-driven projection for the next 24 hours.</p>
+                            </div>
+                            <div style={{ textAlign: 'right', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#ef4444' }}>+12% Trend</div>
+                                <TrendingUp size={16} color="#ef4444" />
+                                <motion.button
+                                    whileTap={{ scale: 0.95 }}
+                                    onClick={() => handleAction('swift', 'swift')}
+                                    disabled={actionStates['swift']}
+                                    style={{
+                                        background: actionStates['swift'] === 'completed' ? '#10b981' : '#E63946',
+                                        color: 'white', border: 'none', padding: '6px 14px', borderRadius: '8px',
+                                        fontSize: '0.75rem', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px'
+                                    }}
+                                >
+                                    {actionStates['swift'] === 'processing' ? <Loader2 size={12} className="animate-spin" /> :
+                                        actionStates['swift'] === 'completed' ? <CheckCircle2 size={12} /> : <><Zap size={12} /> SWIFT</>}
+                                </motion.button>
+                            </div>
+                        </div>
+
+                        <div style={{ flex: 1 }}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={forecastData}>
+                                    <defs>
+                                        <linearGradient id="colorArea" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.05)" />
+                                    <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700 }} />
+                                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700 }} />
+                                    <Tooltip
+                                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px rgba(0,0,0,0.1)' }}
+                                    />
+                                    <Area type="monotone" dataKey="forecast" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorArea)" />
+                                    <Line type="monotone" dataKey="actual" stroke="#10b981" strokeWidth={3} dot={{ r: 4, fill: '#10b981' }} />
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+
+                    {/* REDISTRIBUTION DASHBOARD */}
+                    <div className="card glass" style={{ padding: 'var(--space-xl)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                            <h2 style={{ fontSize: '1.5rem', fontWeight: 900, margin: 0 }}>Network Redistribution</h2>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                <button className="btn btn-secondary" style={{ padding: '8px 12px' }}><LayoutGrid size={16} /></button>
+                                <button className="btn btn-primary" style={{ padding: '8px 12px' }}><List size={16} /></button>
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                            {/* Distribution Hub 1 */}
+                            <div style={{ padding: '20px', borderRadius: '20px', background: 'rgba(0,0,0,0.02)', border: '1px solid #e2e8f0' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+                                    <span style={{ fontWeight: 800 }}>Surplus Overflow</span>
+                                    <span style={{ color: '#ef4444', fontWeight: 900 }}>88% LOAD</span>
+                                </div>
+                                <div style={{ height: '8px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden', marginBottom: '12px' }}>
+                                    <motion.div initial={{ width: 0 }} animate={{ width: '88%' }} style={{ height: '100%', background: '#ef4444' }} />
+                                </div>
+                                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>4 non-critical patients flagged for rerouting.</p>
+                                <motion.button
+                                    whileTap={{ scale: 0.95 }}
+                                    onClick={() => handleAction('simulate', 'simulate')}
+                                    disabled={actionStates['simulate']}
+                                    style={{
+                                        width: '100%', marginTop: '16px', background: actionStates['simulate'] === 'completed' ? '#10b981' : 'var(--primary)',
+                                        color: 'white', border: 'none', padding: '12px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                                    }}
+                                >
+                                    {actionStates['simulate'] === 'processing' ? <Loader2 size={16} className="animate-spin" /> :
+                                        actionStates['simulate'] === 'completed' ? <CheckCircle2 size={16} /> : 'SIMULATE SHIFT'}
+                                </motion.button>
+                            </div>
+
+                            {/* Distribution Hub 2 */}
+                            <div style={{ padding: '20px', borderRadius: '20px', background: 'rgba(0,0,0,0.02)', border: '1px solid #e2e8f0' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+                                    <span style={{ fontWeight: 800 }}>St. Mary's (Proxy)</span>
+                                    <span style={{ color: '#10b981', fontWeight: 900 }}>42% LOAD</span>
+                                </div>
+                                <div style={{ height: '8px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden', marginBottom: '12px' }}>
+                                    <motion.div initial={{ width: 0 }} animate={{ width: '42%' }} style={{ height: '100%', background: '#10b981' }} />
+                                </div>
+                                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>12 ICU beds confirmed available for intake.</p>
+                                <motion.button
+                                    whileTap={{ scale: 0.95 }}
+                                    onClick={() => handleAction('target', 'target')}
+                                    disabled={actionStates['target']}
+                                    style={{
+                                        width: '100%', marginTop: '16px', background: actionStates['target'] === 'completed' ? '#10b981' : '#E63946',
+                                        color: 'white', border: 'none', padding: '12px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                                    }}
+                                >
+                                    {actionStates['target'] === 'processing' ? <Loader2 size={16} className="animate-spin" /> :
+                                        actionStates['target'] === 'completed' ? <CheckCircle2 size={16} /> : 'TARGET INTAKE'}
+                                </motion.button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            {/* CAUSE ANALYSIS SECTION */}
+            <div className="card glass" style={{ padding: 'var(--space-xl)', display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '40px' }}>
+                <div>
+                    <h2 style={{ fontSize: '1.8rem', fontWeight: 900, margin: '0 0 10px 0' }}>Surge Cause Analysis</h2>
+                    <p style={{ color: 'var(--text-muted)', marginBottom: '30px' }}>Real-time attribution logic identifying the root source of network pressure.</p>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        {causeData.map((c, i) => (
+                            <div key={c.name} style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                <div style={{ width: '12px', height: '12px', borderRadius: '3px', background: COLORS[i] }} />
+                                <div style={{ flex: 1, fontWeight: 700 }}>{c.name}</div>
+                                <div style={{ fontWeight: 900, color: COLORS[i] }}>{c.value}%</div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                <div style={{ height: '240px' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                            <Pie
+                                data={causeData}
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={60}
+                                outerRadius={80}
+                                paddingAngle={5}
+                                dataKey="value"
+                            >
+                                {causeData.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                ))}
+                            </Pie>
+                            <Tooltip />
+                        </PieChart>
+                    </ResponsiveContainer>
+                </div>
+            </div>
+
+            {/* LIVE PULSE STATUS BAR */}
+            <div style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                padding: '16px 32px', background: 'black', color: 'white',
+                borderRadius: '16px', boxShadow: '0 20px 40px rgba(0,0,0,0.3)'
+            }}>
+                <div style={{ display: 'flex', gap: '30px', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <Activity size={18} color="#ef4444" />
+                        <span style={{ fontSize: '0.8rem', fontWeight: 900, letterSpacing: '1px' }}>SYSTEM HEARTBEAT</span>
+                    </div>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 700, opacity: 0.6 }}>NETWORK CAPACITY: 4,201 / 5,000 BEDS ACTIVE</div>
+                </div>
+                <div style={{ fontSize: '0.8rem', fontWeight: 900, color: '#10b981', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <Globe size={18} /> GLOBAL SYNC: ACTIVE
+                </div>
+            </div>
+
+            <style>{`
+                .pulse-alert {
+                    animation: pulse-ring 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+                }
+                @keyframes pulse-ring {
+                    0% { transform: scale(0.95); opacity: 1; }
+                    50% { transform: scale(1.05); opacity: 0.8; }
+                    100% { transform: scale(0.95); opacity: 1; }
+                }
+            `}</style>
+
         </div>
     );
 };
 
-// Common Modal Styles
-const modalOverlayStyle = {
-    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-    background: 'rgba(0,0,0,0.5)', zIndex: 1000,
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    backdropFilter: 'blur(4px)'
-};
-
-const modalContentStyle = {
-    width: '440px', background: 'white', borderRadius: '24px',
-    padding: 'var(--space-xl)', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)',
-    border: '1px solid #e2e8f0'
-};
-
-export default SurgeManagement;
+export default HospitalSurgeManagement;

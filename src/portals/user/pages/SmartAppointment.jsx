@@ -3,7 +3,8 @@ import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianG
 import { Calendar, Clock, AlertCircle, CheckCircle2, Home, ArrowRight, Activity, Zap, Thermometer, Heart, Activity as BP, User, Building2, MapPin, X, History, ChevronLeft, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSurgeActions } from '../../../context/SurgeActionsContext';
-import { classifyUrgency, forecastLoad } from '../../../../conduit-ml';
+import { getForecast } from '../../../services/api';
+import { classifyUrgency } from '../../../../conduit-ml';
 
 // Extract condition keywords from free-text symptoms
 const CONDITION_KEYWORDS = [
@@ -109,19 +110,36 @@ const SmartAppointment = () => {
     const [recommendation, setRecommendation] = useState(null);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [hourlyPredictions, setHourlyPredictions] = useState([]);
+    const [lastSync, setLastSync] = useState(null);
+
+    // Identify optimal time for recommendation
+    const optimalPoint = useMemo(() => {
+        if (!hourlyPredictions.length) return null;
+        return [...hourlyPredictions].sort((a, b) => a.load - b.load)[0];
+    }, [hourlyPredictions]);
 
     // Generate ML-powered hourly load forecast
     useEffect(() => {
         const fetchForecast = async () => {
             const now = new Date();
-            const startHour = now.getHours();
-            const day = now.getDay();
             try {
-                const data = await forecastLoad(startHour, day, 10, now.getMonth() + 1);
-                setHourlyPredictions(data.map(f => ({
-                    time: f.time,
-                    load: f.predictedWaitTime
-                })));
+                // Connect to real backend ML engine via API
+                const resp = await getForecast({
+                    hour: now.getHours(),
+                    day_of_week: now.getDay(),
+                    queue_length: 12,
+                    month: now.getMonth() + 1,
+                    hours: 12
+                });
+
+                if (resp && resp.forecast) {
+                    setHourlyPredictions(resp.forecast.map(f => ({
+                        time: `${String(f.hour).padStart(2, '0')}:00`,
+                        load: Math.round(f.predicted_wait_time),
+                        density: Math.round(f.predicted_icu_occupancy)
+                    })));
+                    setLastSync(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+                }
             } catch (err) {
                 console.error("Forecast failed:", err);
             }
@@ -403,23 +421,50 @@ const SmartAppointment = () => {
 
             {/* Right Column: Smart Scheduler & History */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
-                <div className="card shadow-sm" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
+                <div className="card shadow-sm" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)', position: 'relative' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <h3 style={{ margin: 0 }}>Smart Scheduler</h3>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <h3 style={{ margin: 0 }}>Smart Scheduler</h3>
+                            {lastSync && <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 800 }}>LIVE SYNC: {lastSync}</span>}
+                        </div>
                         <div className="badge badge-success">ML ACTIVE</div>
                     </div>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-                        Wait time forecasts powered by Random Forest regression.
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: 0 }}>
+                        Wait time & resource density forecasts via Random Forest regression.
                     </p>
 
-                    <div style={{ height: '200px', margin: '8px 0', cursor: 'crosshair' }}>
+                    {/* Optimal Window Recommendation */}
+                    {optimalPoint && (
+                        <div style={{ background: 'var(--success-bg)', padding: '10px 16px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '10px', border: '1px solid var(--success)' }}>
+                            <Zap size={14} color="var(--success)" fill="var(--success)" />
+                            <div style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--success)' }}>
+                                RECOMMENDED WINDOW: {optimalPoint.time} (Est. {optimalPoint.load}m wait)
+                            </div>
+                        </div>
+                    )}
+
+                    <div style={{ height: '180px', margin: '8px 0', cursor: 'crosshair' }}>
                         <ResponsiveContainer width="100%" height="100%">
                             <AreaChart data={hourlyPredictions} onClick={(data) => data && data.activePayload && setSelectedPoint(data.activePayload[0].payload)}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.1} />
-                                <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} />
+                                <defs>
+                                    <linearGradient id="colorLoad" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.1} />
+                                        <stop offset="95%" stopColor="var(--primary)" stopOpacity={0} />
+                                    </linearGradient>
+                                    <linearGradient id="colorDensity" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="var(--secondary)" stopOpacity={0.1} />
+                                        <stop offset="95%" stopColor="var(--secondary)" stopOpacity={0} />
+                                    </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.05} />
+                                <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 700 }} />
                                 <YAxis hide domain={[0, 'auto']} />
-                                <Tooltip content={() => null} />
-                                <Area type="monotone" dataKey="load" stroke="var(--primary)" fill="rgba(37, 99, 235, 0.1)" strokeWidth={3} activeDot={{ r: 6, fill: 'var(--primary)' }} />
+                                <Tooltip
+                                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', fontWeight: 800, fontSize: '0.75rem' }}
+                                    formatter={(val, name) => [val, name === 'load' ? 'Wait Time (m)' : 'Density (%)']}
+                                />
+                                <Area type="monotone" dataKey="load" stroke="var(--primary)" fill="url(#colorLoad)" strokeWidth={3} activeDot={{ r: 6, fill: 'var(--primary)' }} />
+                                <Area type="monotone" dataKey="density" stroke="var(--secondary)" fill="url(#colorDensity)" strokeWidth={2} strokeDasharray="5 5" fillOpacity={0.05} />
                             </AreaChart>
                         </ResponsiveContainer>
                     </div>
@@ -428,20 +473,25 @@ const SmartAppointment = () => {
                         {selectedPoint && (
                             <motion.div initial={{ y: 5, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="glass" style={{ padding: '16px', borderRadius: '16px', border: '1px solid var(--primary-light)', background: 'var(--primary-light-bg)' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                                    <div style={{ fontSize: '1rem', fontWeight: 900, color: 'var(--primary)' }}>{selectedPoint.time} Statistics</div>
-                                    <div className="badge" style={{ background: selectedPoint.load > 60 ? 'var(--danger)' : 'var(--success)', color: 'white' }}>
-                                        {selectedPoint.load > 60 ? 'High Load' : 'Optimal'}
+                                    <div style={{ fontSize: '1rem', fontWeight: 900, color: 'var(--primary)' }}>{selectedPoint.time} Forecast</div>
+                                    <div className="badge" style={{ background: selectedPoint.load > 40 ? 'var(--danger)' : 'var(--success)', color: 'white' }}>
+                                        {selectedPoint.load > 40 ? 'High Pressure' : 'Optimal Entry'}
                                     </div>
                                 </div>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                                     <div>
                                         <div style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted)' }}>PREDICTED WAIT</div>
-                                        <div style={{ fontSize: '1.25rem', fontWeight: 800 }}>{selectedPoint.load} min</div>
+                                        <div style={{ fontSize: '1.25rem', fontWeight: 900, color: 'var(--primary)' }}>{selectedPoint.load} min</div>
                                     </div>
                                     <div>
-                                        <div style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted)' }}>CONFIDENCE</div>
-                                        <div style={{ fontSize: '1.25rem', fontWeight: 800 }}>96%</div>
+                                        <div style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted)' }}>RESOURCE DENSITY</div>
+                                        <div style={{ fontSize: '1.25rem', fontWeight: 900, color: 'var(--secondary)' }}>{selectedPoint.density}%</div>
                                     </div>
+                                </div>
+                                <div style={{ marginTop: '12px', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', borderTop: '1px solid rgba(0,0,0,0.05)', paddingTop: '10px' }}>
+                                    {selectedPoint.load < 20 ? "✓ Model suggests minimal patient traffic. Fast-track available." :
+                                        selectedPoint.load > 45 ? "⚠ High seasonal load detected. Routine visits not advised." :
+                                            "○ Standard operational flow. Expect moderate throughput."}
                                 </div>
                             </motion.div>
                         )}
