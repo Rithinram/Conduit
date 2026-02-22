@@ -167,41 +167,67 @@ const NetworkDashboard = () => {
 
             {/* Admin Sidebar Controls */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
-                <div className="card">
-                    <h4 style={{ margin: '0 0 var(--space-md) 0' }}>Network Health</h4>
+                <div className="card" style={{
+                    background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+                    border: '1px solid var(--surface-border)'
+                }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-md)' }}>
+                        <h4 style={{ margin: 0 }}>Network Health</h4>
+                        <div className="badge badge-primary" style={{ fontSize: '0.65rem' }}>TREND: STABLE</div>
+                    </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Predictive Surge Prob.</span>
-                            <span style={{ fontWeight: 800, color: 'var(--primary)' }}>{systemMetrics.predictiveSurgeProb}%</span>
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Surge Prob. (4h)</span>
+                            <span style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '1.1rem' }}>{systemMetrics.predictiveSurgeProb}%</span>
                         </div>
-                        <div style={{ height: '6px', background: 'var(--background)', borderRadius: '3px', overflow: 'hidden' }}>
-                            <div style={{ width: `${systemMetrics.predictiveSurgeProb}%`, height: '100%', background: 'var(--primary)' }} />
+                        <div style={{ height: '6px', background: 'rgba(0,0,0,0.05)', borderRadius: '3px', overflow: 'hidden', position: 'relative' }}>
+                            <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${systemMetrics.predictiveSurgeProb}%` }}
+                                transition={{ duration: 1.5, ease: "easeOut" }}
+                                style={{ height: '100%', background: 'linear-gradient(90deg, #6366f1 0%, #4f46e5 100%)' }}
+                            />
+                        </div>
+                        <div style={{ display: 'flex', gap: '4px', height: '20px', alignItems: 'flex-end', marginTop: '4px' }}>
+                            {[40, 45, 42, 48, 52, 50, 47, 45, 43, 41].map((v, i) => (
+                                <motion.div
+                                    key={i}
+                                    initial={{ height: 0 }}
+                                    animate={{ height: `${v}%` }}
+                                    style={{ flex: 1, background: 'var(--primary-light)', borderRadius: '1px' }}
+                                />
+                            ))}
                         </div>
                     </div>
                 </div>
 
-                <div className="card" style={{ background: 'var(--text-main)', color: 'white', border: '1px solid rgba(255,255,255,0.1)' }}>
-                    <h4 style={{ marginBottom: 'var(--space-md)', color: 'var(--secondary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <Settings size={18} /> Admin Overrides
+                <div className="card" style={{
+                    background: 'linear-gradient(135deg, #4338ca 0%, #3730a3 100%)',
+                    color: 'white',
+                    border: 'none',
+                    boxShadow: '0 10px 25px rgba(67, 56, 202, 0.3)'
+                }}>
+                    <h4 style={{ marginBottom: 'var(--space-md)', color: '#a5b4fc', display: 'flex', alignItems: 'center', gap: '8px', letterSpacing: '0.5px' }}>
+                        <Settings size={18} /> ADMIN OVERRIDES
                     </h4>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
                         <button
                             className={`btn btn-glass-dark ${overrideAction === 'redistribute' ? 'pulse-alert' : ''}`}
-                            style={{ justifyContent: 'flex-start' }}
+                            style={{ justifyContent: 'flex-start', border: '1px solid rgba(255,255,255,0.1)' }}
                             onClick={() => handleOverride('redistribute')}
                         >
                             <ShieldAlert size={16} /> {overrideAction === 'redistribute' ? 'EXECUTING...' : 'Forced Redistribution'}
                         </button>
                         <button
                             className={`btn btn-glass-dark ${overrideAction === 'triage' ? 'pulse-alert' : ''}`}
-                            style={{ justifyContent: 'flex-start' }}
+                            style={{ justifyContent: 'flex-start', border: '1px solid rgba(255,255,255,0.1)' }}
                             onClick={() => handleOverride('triage')}
                         >
                             <Settings size={16} /> {overrideAction === 'triage' ? 'ADJUSTING...' : 'Adjust Triage Rules'}
                         </button>
                         <button
                             className={`btn btn-glass-dark ${overrideAction === 'alert' ? 'pulse-critical' : ''}`}
-                            style={{ justifyContent: 'flex-start' }}
+                            style={{ justifyContent: 'flex-start', background: 'rgba(239, 68, 68, 0.2)', border: '1px solid rgba(239, 68, 68, 0.3)' }}
                             onClick={() => handleOverride('alert')}
                         >
                             <Bell size={16} /> {overrideAction === 'alert' ? 'DISPATCHING...' : 'Network-Wide Alert'}
@@ -209,17 +235,32 @@ const NetworkDashboard = () => {
                     </div>
 
                     <AnimatePresence>
-                        {overrideAction && (
+                        {overrideAction ? (
                             <motion.div
                                 initial={{ opacity: 0, height: 0 }}
                                 animate={{ opacity: 1, height: 'auto' }}
                                 exit={{ opacity: 0, height: 0 }}
-                                style={{ marginTop: 'var(--space-md)', fontSize: '0.75rem', color: 'var(--secondary)', fontWeight: 600, textAlign: 'center' }}
+                                style={{ marginTop: 'var(--space-md)', fontSize: '0.75rem', color: '#a5b4fc', fontWeight: 600, textAlign: 'center' }}
                             >
                                 <motion.span animate={{ opacity: [1, 0.5, 1] }} transition={{ repeat: Infinity }}>
                                     PROTOCOL SECURED: Updating regional nodes...
                                 </motion.span>
                             </motion.div>
+                        ) : (
+                            <div style={{ marginTop: 'var(--space-lg)', padding: '12px', background: 'rgba(0,0,0,0.2)', borderRadius: '8px' }}>
+                                <div style={{ fontSize: '0.65rem', fontWeight: 900, color: '#a5b4fc', marginBottom: '8px', letterSpacing: '1px' }}>REGIONAL ACTION FEED</div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '80px', overflowY: 'hidden' }}>
+                                    {[
+                                        { t: '12:04', m: 'Malar Node Sync Success' },
+                                        { t: '11:58', m: 'GGH Load Diverted to MIOT' }
+                                    ].map((f, i) => (
+                                        <div key={i} style={{ display: 'flex', gap: '8px', fontSize: '0.7rem' }}>
+                                            <span style={{ opacity: 0.5 }}>{f.t}</span>
+                                            <span style={{ fontWeight: 500 }}>{f.m}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
                         )}
                     </AnimatePresence>
                 </div>

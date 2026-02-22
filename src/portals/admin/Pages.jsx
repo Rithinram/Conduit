@@ -4,7 +4,6 @@ import ResourceAllocation from './pages/ResourceAllocation';
 import PolicyManagement from './pages/PolicyManagement';
 import CoordinationPanel from './pages/CoordinationPanel';
 import OperationalAlerts from './pages/OperationalAlerts';
-import CareOversight from './pages/CareOversight';
 import UnifiedAnalytics from './pages/UnifiedAnalytics';
 
 export {
@@ -14,6 +13,5 @@ export {
     PolicyManagement,
     CoordinationPanel,
     OperationalAlerts,
-    CareOversight,
     UnifiedAnalytics
 };

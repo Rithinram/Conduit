@@ -17,6 +17,7 @@ const PolicyManagement = () => {
         },
         nudgeIntensity: 'Balanced'
     });
+    const [isDraftMode, setIsDraftMode] = useState(true);
     const [simulationResult, setSimulationResult] = useState(null);
     const [saveStatus, setSaveStatus] = useState(null);
 
@@ -87,31 +88,36 @@ const PolicyManagement = () => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
             <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: 'var(--space-lg)' }}>
                 {/* Policy Navigation */}
-                <div className="card" style={{ padding: 'var(--space-md)' }}>
-                    <h4 style={{ margin: '0 0 var(--space-lg) var(--space-md)' }}>Policy Categories</h4>
+                <div className="card" style={{ padding: 'var(--space-md)', background: '#f8fafc', border: '1px solid var(--surface-border)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: 'var(--space-lg)', paddingLeft: 'var(--space-md)' }}>
+                        <Settings size={20} color="var(--primary)" />
+                        <h4 style={{ margin: 0 }}>Policy Categories</h4>
+                    </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
                         {[
-                            { id: 'triage', label: 'Triage Sensitivity', icon: Shield },
-                            { id: 'tele', label: 'Teleconsult Eligibility', icon: Zap },
-                            { id: 'surge', label: 'Surge Thresholds', icon: Globe },
-                            { id: 'defer', label: 'Deferral Policies', icon: History },
+                            { id: 'triage', label: 'Triage Sensitivity', icon: Shield, color: '#6366f1' },
+                            { id: 'tele', label: 'Teleconsult Eligibility', icon: Zap, color: '#f59e0b' },
+                            { id: 'surge', label: 'Surge Thresholds', icon: Globe, color: '#10b981' },
+                            { id: 'defer', label: 'Deferral Policies', icon: History, color: '#ef4444' },
                         ].map((tab) => (
-                            <button
+                            <motion.button
                                 key={tab.id}
+                                whileHover={{ x: 5 }}
                                 onClick={() => setActiveTab(tab.id)}
                                 className="btn"
                                 style={{
                                     justifyContent: 'flex-start',
                                     gap: 'var(--space-md)',
-                                    background: activeTab === tab.id ? 'var(--primary-light)' : 'transparent',
-                                    color: activeTab === tab.id ? 'var(--primary)' : 'var(--text-main)',
-                                    border: 'none',
+                                    background: activeTab === tab.id ? 'white' : 'transparent',
+                                    color: activeTab === tab.id ? 'var(--text-main)' : 'var(--text-muted)',
+                                    border: activeTab === tab.id ? '1px solid var(--surface-border)' : '1px solid transparent',
+                                    boxShadow: activeTab === tab.id ? 'var(--shadow-sm)' : 'none',
                                     padding: '12px 16px',
-                                    fontWeight: activeTab === tab.id ? 700 : 500
+                                    fontWeight: activeTab === tab.id ? 800 : 500
                                 }}
                             >
-                                <tab.icon size={18} /> {tab.label}
-                            </button>
+                                <tab.icon size={18} color={activeTab === tab.id ? tab.color : 'var(--text-muted)'} /> {tab.label.toUpperCase()}
+                            </motion.button>
                         ))}
                     </div>
                 </div>
@@ -119,20 +125,49 @@ const PolicyManagement = () => {
                 {/* Rule Editor */}
                 <div className="card">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-xl)' }}>
-                        <h3 style={{ margin: 0 }}>Policy Editor: {activeTab.toUpperCase()}</h3>
-                        <div style={{ display: 'flex', gap: 'var(--space-md)' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <h3 style={{ margin: 0, fontSize: '1.4rem' }}>Policy Editor: {activeTab.toUpperCase()}</h3>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                                <div style={{ width: 8, height: 8, borderRadius: '50%', background: isDraftMode ? '#f59e0b' : '#10b981' }} className={isDraftMode ? 'pulse-alert' : ''} />
+                                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>{isDraftMode ? 'STAGING DRAFT' : 'LIVE NETWORK'}</span>
+                            </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 'var(--space-md)', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', background: 'var(--background)', padding: '4px', borderRadius: '10px', marginRight: 'var(--space-md)' }}>
+                                <button
+                                    onClick={() => setIsDraftMode(true)}
+                                    style={{
+                                        padding: '4px 12px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: 800, border: 'none',
+                                        background: isDraftMode ? 'white' : 'transparent', boxShadow: isDraftMode ? 'var(--shadow-sm)' : 'none',
+                                        color: isDraftMode ? 'var(--text-main)' : 'var(--text-muted)', cursor: 'pointer'
+                                    }}
+                                >DRAFT</button>
+                                <button
+                                    onClick={() => setIsDraftMode(false)}
+                                    style={{
+                                        padding: '4px 12px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: 800, border: 'none',
+                                        background: !isDraftMode ? 'white' : 'transparent', boxShadow: !isDraftMode ? 'var(--shadow-sm)' : 'none',
+                                        color: !isDraftMode ? 'var(--text-main)' : 'var(--text-muted)', cursor: 'pointer'
+                                    }}
+                                >LIVE</button>
+                            </div>
                             <button
                                 className="btn glass"
                                 onClick={handleSimulate}
                                 disabled={isSimulating}
+                                style={{ border: '1px solid var(--surface-border)', fontWeight: 700 }}
                             >
-                                <Play size={16} /> {isSimulating ? 'SIMULATING...' : 'SIMULATE IMPACT'}
+                                <Play size={16} /> {isSimulating ? 'SIMULATING...' : 'SIMULATE'}
                             </button>
                             <button
                                 className="btn btn-primary"
                                 onClick={handleSave}
-                                disabled={isSaving}
-                                style={{ transform: isSaving ? 'scale(0.98)' : 'none' }}
+                                disabled={isSaving || isDraftMode}
+                                style={{
+                                    transform: isSaving ? 'scale(0.98)' : 'none',
+                                    fontWeight: 800,
+                                    opacity: isDraftMode ? 0.5 : 1
+                                }}
                             >
                                 {isSaving ? 'PROPAGATING...' : 'PUSH TO NETWORK'} <Save size={16} />
                             </button>
@@ -237,11 +272,32 @@ const PolicyManagement = () => {
                 </div>
             </div>
 
-            <div className="card glass" style={{ background: 'rgba(37, 99, 235, 0.05)', display: 'flex', gap: 'var(--space-md)', alignItems: 'center' }}>
-                <Info size={20} color="var(--primary)" />
-                <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600 }}>
-                    <strong>Administrative Governance:</strong> Policy changes require Level 3 authentication and are logged in the regional immutable audit vault.
-                </p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 'var(--space-lg)' }}>
+                <div className="card" style={{ background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)', border: 'none', color: 'white' }}>
+                    <div style={{ fontSize: '0.7rem', fontWeight: 900, color: '#818cf8', marginBottom: '16px', letterSpacing: '1px' }}>POLICY IMPACT HISTORY</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        {[
+                            { date: 'FEB 21', action: 'Increased Triage to Level 3', impact: '-18% ER Wait' },
+                            { date: 'FEB 19', action: 'Auto-Redirect Post-Op Follow-up', impact: '22% Clinic ROI' }
+                        ].map((item, i) => (
+                            <div key={i} style={{ display: 'flex', gap: '16px', alignItems: 'center', padding: '12px', background: 'rgba(255,255,255,0.05)', borderRadius: '12px' }}>
+                                <div style={{ fontSize: '0.65rem', fontWeight: 900, opacity: 0.5, width: '40px' }}>{item.date}</div>
+                                <div style={{ flex: 1, fontSize: '0.8rem', fontWeight: 600 }}>{item.action}</div>
+                                <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#34d399' }}>{item.impact}</div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="card glass" style={{ background: 'rgba(37, 99, 235, 0.05)', display: 'flex', gap: 'var(--space-md)', alignItems: 'center', border: 'none' }}>
+                    <Info size={24} color="var(--primary)" />
+                    <div>
+                        <h4 style={{ margin: 0, fontSize: '0.9rem' }}>Administrative Governance</h4>
+                        <p style={{ margin: '4px 0 0 0', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>
+                            Policy changes require Level 3 authentication and are logged in the regional immutable audit vault.
+                        </p>
+                    </div>
+                </div>
             </div>
         </div>
     );

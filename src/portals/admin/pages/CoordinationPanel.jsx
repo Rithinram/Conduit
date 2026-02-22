@@ -9,6 +9,8 @@ const CoordinationPanel = () => {
     const [hospitals, setHospitals] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [actionStatus, setActionStatus] = useState(null);
+    const [trackingUnit, setTrackingUnit] = useState(null);
+    const [editingProposal, setEditingProposal] = useState(null);
 
     const fetchData = async () => {
         setIsLoading(true);
@@ -70,6 +72,24 @@ const CoordinationPanel = () => {
         setTimeout(() => setActionStatus(null), 4000);
     };
 
+    const handleTrackUnit = (unit) => {
+        setActionStatus(`Initializing GPS link for ${unit.patientName}...`);
+        setTimeout(() => {
+            setTrackingUnit(unit);
+            setActionStatus(`Tracking Active: Unit ${unit.id.slice(-5).toUpperCase()}`);
+        }, 1200);
+    };
+
+    const handleEditProposal = (prop) => {
+        setEditingProposal(prop);
+    };
+
+    const handleSaveEdit = () => {
+        setActionStatus('Proposal updated in clinical queue.');
+        setEditingProposal(null);
+        setTimeout(() => setActionStatus(null), 3000);
+    };
+
     // Filter for patients that might be "transfers" or high priority
     const activeTransfers = patients.filter(p =>
         p.urgencyLevel === 'High' || p.urgencyLevel === 'Critical'
@@ -123,7 +143,7 @@ const CoordinationPanel = () => {
                                         </div>
                                     </div>
                                     <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
-                                        <button className="btn glass" style={{ padding: '6px' }}><Edit3 size={14} /></button>
+                                        <button className="btn glass" style={{ padding: '6px' }} onClick={() => handleEditProposal(prop)}><Edit3 size={14} /></button>
                                         <button
                                             className="btn btn-primary"
                                             style={{ padding: '6px 12px', fontSize: '0.75rem' }}
@@ -163,14 +183,26 @@ const CoordinationPanel = () => {
                         </div>
                     </div>
 
-                    <div className="card" style={{ background: 'var(--text-main)', color: 'white' }}>
+                    <div className="card" style={{
+                        background: 'linear-gradient(135deg, #166534 0%, #15803d 100%)',
+                        color: 'white',
+                        border: 'none',
+                        boxShadow: '0 10px 25px rgba(22, 101, 52, 0.2)'
+                    }}>
                         <div style={{ display: 'flex', gap: 'var(--space-md)' }}>
-                            <Navigation size={32} color="var(--primary)" />
+                            <Navigation size={32} color="#4ade80" />
                             <div>
-                                <h4 style={{ margin: 0 }}>Logistics Health</h4>
-                                <div style={{ fontSize: '1.25rem', fontWeight: 900, margin: '8px 0' }}>14 <span style={{ fontSize: '0.8rem', fontWeight: 400, opacity: 0.7 }}>Active Units</span></div>
-                                <p style={{ margin: 0, fontSize: '0.75rem', opacity: 0.8 }}>
-                                    Mean response time minimized to <strong>12.4m</strong> عبر across the network.
+                                <h4 style={{ margin: 0, color: '#4ade80', fontSize: '0.8rem', fontWeight: 900, letterSpacing: '0.5px' }}>ACTIVE UNITS</h4>
+                                <div style={{
+                                    fontSize: '1.8rem',
+                                    fontWeight: 900,
+                                    margin: '4px 0',
+                                    color: 'white'
+                                }}>
+                                    14
+                                </div>
+                                <p style={{ margin: 0, fontSize: '0.75rem', opacity: 0.9 }}>
+                                    Mean response time: <strong>12.4m</strong> network-wide.
                                 </p>
                             </div>
                         </div>
@@ -204,14 +236,137 @@ const CoordinationPanel = () => {
                                 <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>12m REMAINING</span>
                             </div>
                             <div style={{ textAlign: 'right' }}>
-                                <button className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '0.7rem' }}>TRACK UNIT</button>
+                                <button
+                                    className={`btn ${trackingUnit?.id === t.id ? 'btn-success' : 'btn-primary'}`}
+                                    style={{ padding: '6px 12px', fontSize: '0.7rem' }}
+                                    onClick={() => handleTrackUnit(t)}
+                                >
+                                    {trackingUnit?.id === t.id ? 'UNIT TRACKED' : 'TRACK UNIT'}
+                                </button>
                             </div>
                         </div>
                     ))}
                 </div>
             </div>
+
+            {/* Modals & Overlays */}
+            <AnimatePresence>
+                {trackingUnit && (
+                    <motion.div
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        style={overlayStyle}
+                        onClick={() => setTrackingUnit(null)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+                            style={modalStyle}
+                            onClick={e => e.stopPropagation()}
+                        >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-lg)' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                    <div style={{ width: 40, height: 40, borderRadius: '10px', background: 'var(--primary-light)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <Navigation size={20} className="pulse-alert" />
+                                    </div>
+                                    <div>
+                                        <h3 style={{ margin: 0 }}>En-Route Tracking</h3>
+                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Unit ID: {trackingUnit.id.slice(-8).toUpperCase()}</div>
+                                    </div>
+                                </div>
+                                <X size={20} style={{ cursor: 'pointer' }} onClick={() => setTrackingUnit(null)} />
+                            </div>
+
+                            <div style={{ background: 'var(--background)', padding: 'var(--space-lg)', borderRadius: '16px', marginBottom: 'var(--space-lg)' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-md)' }}>
+                                    <span style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-muted)' }}>LIVE TELEMETRY</span>
+                                    <span style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--success)' }}>STABLE</span>
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-md)' }}>
+                                    <div>
+                                        <div style={{ fontSize: '0.65rem', opacity: 0.6 }}>SPEED</div>
+                                        <div style={{ fontWeight: 800 }}>64 km/h</div>
+                                    </div>
+                                    <div>
+                                        <div style={{ fontSize: '0.65rem', opacity: 0.6 }}>DISTANCE</div>
+                                        <div style={{ fontWeight: 800 }}>1.4 km to dest.</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div style={{ position: 'relative', height: '120px', background: '#e2e8f0', borderRadius: '12px', overflow: 'hidden', marginBottom: 'var(--space-lg)' }}>
+                                <div style={{ position: 'absolute', top: '50%', left: '10%', right: '10%', height: '4px', background: 'white', borderRadius: '2px' }} />
+                                <motion.div
+                                    animate={{ left: ['10%', '60%'] }}
+                                    transition={{ duration: 10, repeat: Infinity, ease: 'linear' }}
+                                    style={{ position: 'absolute', top: '50', transform: 'translateY(-50%)', width: 24, height: 24, borderRadius: '50%', background: 'var(--primary)', border: '4px solid white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                >
+                                    <Navigation size={10} color="white" style={{ transform: 'rotate(90deg)' }} />
+                                </motion.div>
+                            </div>
+
+                            <button className="btn btn-primary" style={{ width: '100%' }} onClick={() => setTrackingUnit(null)}>DISMISS MONITOR</button>
+                        </motion.div>
+                    </motion.div>
+                )}
+
+                {editingProposal && (
+                    <motion.div
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        style={overlayStyle}
+                        onClick={() => setEditingProposal(null)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+                            style={modalStyle}
+                            onClick={e => e.stopPropagation()}
+                        >
+                            <h3 style={{ marginBottom: 'var(--space-md)' }}>Edit Shift Strategy</h3>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
+                                <div>
+                                    <label style={{ fontSize: '0.75rem', fontWeight: 700, marginBottom: '4px', display: 'block' }}>REALLOCATION COUNT</label>
+                                    <input type="number" defaultValue={editingProposal.count} className="glass" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--surface-border)' }} />
+                                </div>
+                                <div>
+                                    <label style={{ fontSize: '0.75rem', fontWeight: 700, marginBottom: '4px', display: 'block' }}>PRIORITY LEVEL</label>
+                                    <select className="glass" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--surface-border)' }}>
+                                        <option>Low</option>
+                                        <option selected={editingProposal.intensity === 'Moderate'}>Moderate</option>
+                                        <option selected={editingProposal.intensity === 'Critical'}>Critical</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div style={{ display: 'flex', gap: 'var(--space-md)', marginTop: 'var(--space-xl)' }}>
+                                <button className="btn glass" style={{ flex: 1 }} onClick={() => setEditingProposal(null)}>CANCEL</button>
+                                <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleSaveEdit}>SAVE CHANGES</button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };
+
+// Styles
+const overlayStyle = {
+    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+    background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
+};
+
+const modalStyle = {
+    width: '400px', background: 'white', padding: 'var(--space-xl)',
+    borderRadius: '24px', boxShadow: 'var(--shadow-xl)', border: '1px solid var(--surface-border)'
+};
+
+const X = ({ size, style, onClick }) => (
+    <svg
+        onClick={onClick}
+        style={style}
+        width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+    >
+        <line x1="18" y1="6" x2="6" y2="18"></line>
+        <line x1="6" y1="6" x2="18" y2="18"></line>
+    </svg>
+);
 
 export default CoordinationPanel;

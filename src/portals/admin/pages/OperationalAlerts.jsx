@@ -48,22 +48,40 @@ const OperationalAlerts = () => {
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
             {/* Active Alerts Header */}
-            <div className="card glass" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="card" style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%)',
+                color: 'white',
+                border: 'none',
+                boxShadow: 'var(--shadow-xl)'
+            }}>
                 <div style={{ display: 'flex', gap: 'var(--space-xl)', alignItems: 'center' }}>
                     <div style={{ position: 'relative' }}>
-                        <Bell size={32} color="var(--primary)" />
+                        <Bell size={32} color="white" />
                         {alerts.some(a => a.type === 'danger') && (
-                            <div style={{ position: 'absolute', top: -4, right: -4, width: 16, height: 16, background: 'var(--danger)', borderRadius: '50%', border: '2px solid white' }} />
+                            <motion.div
+                                animate={{ scale: [1, 1.2, 1] }}
+                                transition={{ repeat: Infinity, duration: 1.5 }}
+                                style={{ position: 'absolute', top: -4, right: -4, width: 16, height: 16, background: 'var(--danger)', borderRadius: '50%', border: '2px solid white' }}
+                            />
                         )}
                     </div>
                     <div>
-                        <h2 style={{ margin: 0 }}>Operational Alerts</h2>
-                        <p style={{ margin: '4px 0 0 0', color: 'var(--text-muted)' }}>Real-time monitoring of all network nodes.</p>
+                        <h2 style={{ margin: 0, color: 'white' }}>Operational Alerts</h2>
+                        <p style={{ margin: '4px 0 0 0', color: 'rgba(255,255,255,0.8)', fontSize: '0.9rem' }}>Real-time monitoring of all network nodes.</p>
                     </div>
                 </div>
                 <div style={{ display: 'flex', gap: 'var(--space-md)' }}>
-                    <button onClick={fetchData} className="btn glass"><RefreshCw size={16} /></button>
-                    <button className="btn btn-primary" onClick={handleReset}>STABILIZE NETWORK</button>
+                    <button onClick={fetchData} className="btn btn-glass-dark" style={{ border: '1px solid rgba(255,255,255,0.2)' }}><RefreshCw size={16} /></button>
+                    <button
+                        className={`btn ${alerts.some(a => a.type === 'danger') ? 'pulse-critical' : ''}`}
+                        style={{ background: 'var(--secondary)', color: 'var(--text-main)', fontWeight: 900, border: 'none' }}
+                        onClick={handleReset}
+                    >
+                        STABILIZE NETWORK
+                    </button>
                 </div>
             </div>
 
@@ -78,34 +96,41 @@ const OperationalAlerts = () => {
                                 initial={{ x: -20, opacity: 0 }}
                                 animate={{ x: 0, opacity: 1 }}
                                 exit={{ x: 50, opacity: 0 }}
+                                whileHover={{ x: 8, scale: 1.01 }}
                                 className="card"
                                 style={{
                                     borderLeft: `6px solid var(--${a.type})`,
+                                    background: a.type === 'danger'
+                                        ? 'linear-gradient(90deg, rgba(239, 68, 68, 0.05) 0%, white 100%)'
+                                        : a.type === 'warning'
+                                            ? 'linear-gradient(90deg, rgba(245, 158, 11, 0.05) 0%, white 100%)'
+                                            : 'linear-gradient(90deg, rgba(59, 130, 246, 0.05) 0%, white 100%)',
                                     display: 'flex',
                                     gap: 'var(--space-lg)',
-                                    alignItems: 'flex-start'
+                                    alignItems: 'flex-start',
+                                    transition: 'all 0.2s ease'
                                 }}
                             >
-                                <div style={{ background: `var(--${a.type}-bg)`, padding: '12px', borderRadius: 'var(--radius-md)' }}>
-                                    {a.type === 'danger' ? <ShieldAlert size={24} color="var(--danger)" /> : a.type === 'warning' ? <AlertTriangle size={24} color="var(--warning)" /> : <Info size={24} color="var(--primary)" />}
+                                <div style={{ background: `var(--${a.type}-bg)`, padding: '12px', borderRadius: '16px' }}>
+                                    {a.type === 'danger' ? <ShieldAlert size={28} color="var(--danger)" /> : a.type === 'warning' ? <AlertTriangle size={28} color="var(--warning)" /> : <Info size={28} color="var(--primary)" />}
                                 </div>
                                 <div style={{ flex: 1 }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <h4 style={{ margin: 0, color: `var(--${a.type})` }}>{a.title}</h4>
-                                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}><Clock size={12} style={{ verticalAlign: 'middle', marginRight: '4px' }} /> {a.time}</span>
+                                        <h4 style={{ margin: 0, color: `var(--${a.type})`, fontSize: '1.1rem', fontWeight: 800 }}>{a.title}</h4>
+                                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}><Clock size={12} style={{ verticalAlign: 'middle', marginRight: '4px' }} /> {a.time.toUpperCase()}</span>
                                     </div>
-                                    <p style={{ margin: '8px 0 0 0', fontSize: '0.9rem', color: 'var(--text-main)', lineHeight: 1.5 }}>{a.msg}</p>
+                                    <p style={{ margin: '8px 0 0 0', fontSize: '0.95rem', color: 'var(--text-main)', lineHeight: 1.6, opacity: 0.9 }}>{a.msg}</p>
                                     <div style={{ display: 'flex', gap: 'var(--space-md)', marginTop: 'var(--space-lg)' }}>
                                         <button
-                                            className="btn btn-primary"
-                                            style={{ fontSize: '0.75rem', padding: '0.5rem 1rem', gap: '8px' }}
+                                            className="btn"
+                                            style={{ fontSize: '0.75rem', padding: '0.6rem 1.2rem', gap: '8px', background: 'var(--text-main)', color: 'white' }}
                                             onClick={() => navigate('/admin/coordination')}
                                         >
                                             <Navigation size={14} /> RE-ROUTE COORDINATION
                                         </button>
                                         <button
                                             className="btn glass"
-                                            style={{ fontSize: '0.75rem', padding: '0.5rem 1rem' }}
+                                            style={{ fontSize: '0.75rem', padding: '0.6rem 1.2rem', fontWeight: 700 }}
                                             onClick={() => toggleAcknowledge(a.id)}
                                         >
                                             ACKNOWLEDGE
@@ -114,10 +139,10 @@ const OperationalAlerts = () => {
                                 </div>
                                 <button
                                     className="btn glass"
-                                    style={{ border: 'none', padding: '4px' }}
+                                    style={{ border: 'none', padding: '8px', color: 'var(--text-muted)' }}
                                     onClick={() => toggleAcknowledge(a.id)}
                                 >
-                                    <X size={16} />
+                                    <X size={18} />
                                 </button>
                             </motion.div>
                         )) : (
@@ -141,37 +166,61 @@ const OperationalAlerts = () => {
                         <h4>Regional Stability Index</h4>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)', marginTop: 'var(--space-md)' }}>
                             <div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '4px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '8px', color: 'var(--text-muted)', fontWeight: 700 }}>
                                     <span>Resolution Efficiency</span>
-                                    <span style={{ fontWeight: 700 }}>92%</span>
+                                    <span style={{ color: 'var(--success)' }}>92%</span>
                                 </div>
-                                <div style={{ height: '4px', background: 'var(--background)', borderRadius: '2px' }}>
-                                    <div style={{ width: '92%', height: '100%', background: 'var(--success)' }} />
+                                <div style={{ height: '8px', background: 'var(--background)', borderRadius: '4px', overflow: 'hidden' }}>
+                                    <motion.div
+                                        initial={{ width: 0 }}
+                                        animate={{ width: '92%' }}
+                                        style={{ height: '100%', background: 'linear-gradient(90deg, #4ade80 0%, #22c55e 100%)' }}
+                                    />
                                 </div>
                             </div>
                             <div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '4px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '8px', color: 'var(--text-muted)', fontWeight: 700 }}>
                                     <span>Network Latency</span>
-                                    <span style={{ fontWeight: 700 }}>42ms</span>
+                                    <span style={{ color: 'var(--primary)' }}>42ms</span>
                                 </div>
-                                <div style={{ height: '4px', background: 'var(--background)', borderRadius: '2px' }}>
-                                    <div style={{ width: '95%', height: '100%', background: 'var(--primary)' }} />
+                                <div style={{ height: '8px', background: 'var(--background)', borderRadius: '4px', overflow: 'hidden' }}>
+                                    <motion.div
+                                        initial={{ width: 0 }}
+                                        animate={{ width: '95%' }}
+                                        style={{ height: '100%', background: 'linear-gradient(90deg, #60a5fa 0%, #3b82f6 100%)' }}
+                                    />
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <div className="card" style={{ background: 'var(--text-main)', color: 'white' }}>
+                    <div className="card" style={{
+                        background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+                        color: 'white',
+                        border: 'none',
+                        boxShadow: 'var(--shadow-lg)'
+                    }}>
                         <div style={{ display: 'flex', gap: 'var(--space-md)', alignItems: 'center', marginBottom: 'var(--space-md)' }}>
-                            <Zap size={20} color="var(--warning)" />
-                            <h4 style={{ margin: 0 }}>System Guard: {systemState?.globalAlertLevel || 'Optimal'}</h4>
+                            <div style={{ background: 'rgba(255,255,100,0.1)', padding: '8px', borderRadius: '12px' }}>
+                                <Zap size={20} color="var(--warning)" />
+                            </div>
+                            <h4 style={{ margin: 0, color: 'white' }}>System Guard: <span style={{ color: 'var(--secondary)' }}>{systemState?.globalAlertLevel || 'Optimal'}</span></h4>
                         </div>
-                        <p style={{ fontSize: '0.8rem', opacity: 0.8 }}>
-                            Redistribution Protocol: {systemState?.redistributionProtocolActive ? 'ACTIVE' : 'IDLE'}.
+                        <p style={{ fontSize: '0.85rem', opacity: 0.8, lineHeight: 1.5 }}>
+                            Redistribution Protocol: <strong style={{ color: systemState?.redistributionProtocolActive ? 'var(--success)' : 'var(--text-muted)' }}>{systemState?.redistributionProtocolActive ? 'ACTIVE' : 'IDLE'}</strong>.
                             Awaiting {alerts.length} acknowledgments.
                         </p>
-                        <div className="card glass" style={{ border: 'none', background: 'rgba(255,255,255,0.05)', marginTop: 'var(--space-md)' }}>
-                            <div style={{ fontSize: '0.7rem', color: 'var(--success)', fontWeight: 700 }}>TRUST SCORE: 98.4</div>
+                        <div className="card" style={{
+                            border: 'none',
+                            background: 'rgba(255,255,255,0.05)',
+                            marginTop: 'var(--space-md)',
+                            padding: '12px',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center'
+                        }}>
+                            <div style={{ fontSize: '0.75rem', color: '#4ade80', fontWeight: 800 }}>TRUST SCORE</div>
+                            <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#4ade80', textShadow: '0 0 10px rgba(74, 222, 128, 0.3)' }}>98.4</div>
                         </div>
                     </div>
                 </div>

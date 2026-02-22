@@ -1,320 +1,269 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { Package, Truck, Activity, TrendingUp, AlertTriangle, UserPlus, Microscope, ArrowRight, RefreshCw, History, Send, BrainCircuit, Zap, Clock } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import {
+    Zap, Activity, ShieldAlert, Navigation,
+    ArrowRight, CheckCircle2, MoreVertical,
+    RefreshCw, ChevronRight, Send, AlertCircle,
+    UserCircle2, Laptop2, Thermometer, Box
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getHospitals, getResources, transferResource, predictResourceExhaustion, getReallocationProposals } from '../../../services/api';
+
+const MOCK_HOSPITALS = [
+    {
+        id: 'h1',
+        name: 'Apollo Hospitals - Greams Road',
+        resources: { ventilators: 45, icuBeds: 120, staff: 85, oxygen: 92 },
+        nearby: 'SIMS Hospital'
+    },
+    {
+        id: 'h2',
+        name: 'Government General Hospital',
+        resources: { ventilators: 30, icuBeds: 250, staff: 150, oxygen: 80 },
+        nearby: 'Fortis Malar Hospital'
+    },
+    {
+        id: 'h3',
+        name: 'SIMS Hospital',
+        resources: { ventilators: 25, icuBeds: 80, staff: 60, oxygen: 88 },
+        nearby: 'Apollo Greams Road'
+    },
+    {
+        id: 'h4',
+        name: 'Sri Ramachandra Medical Centre',
+        resources: { ventilators: 35, icuBeds: 180, staff: 110, oxygen: 95 },
+        nearby: 'MIOT International'
+    },
+    {
+        id: 'h5',
+        name: 'MIOT International',
+        resources: { ventilators: 40, icuBeds: 150, staff: 95, oxygen: 90 },
+        nearby: 'Sri Ramachandra'
+    },
+    {
+        id: 'h6',
+        name: 'Fortis Malar Hospital',
+        resources: { ventilators: 20, icuBeds: 60, staff: 45, oxygen: 85 },
+        nearby: 'GGH'
+    }
+];
 
 const ResourceAllocation = () => {
-    const [hospitals, setHospitals] = useState([]);
-    const [resources, setResources] = useState([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [actionStatus, setActionStatus] = useState(null);
-    const [actionHistory, setActionHistory] = useState([]);
+    const [selectedHospital, setSelectedHospital] = useState(MOCK_HOSPITALS[0]);
+    const [allocationStep, setAllocationStep] = useState('idle'); // idle, approving, success
+    const [lastTransfer, setLastTransfer] = useState(null);
 
-    // AI Insights State
-    const [aiInsights, setAiInsights] = useState({});
-    const [isAiLoading, setIsAiLoading] = useState(false);
-
-    // Form State
-    const [transferForm, setTransferForm] = useState({
-        from: '',
-        to: '',
-        type: 'ventilators',
-        count: 1
-    });
-
-    const fetchData = async () => {
-        setIsLoading(true);
-        const [hospData, resData] = await Promise.all([
-            getHospitals(),
-            getResources()
-        ]);
-        setHospitals(hospData);
-        setResources(resData);
-        setIsLoading(false);
-
-        // Fetch AI Insights for each hospital
-        fetchAiInsights(hospData, resData);
+    const handleTransfer = () => {
+        setAllocationStep('approving');
+        setTimeout(() => {
+            setLastTransfer({
+                from: selectedHospital.name,
+                to: selectedHospital.nearby,
+                time: new Date().toLocaleTimeString()
+            });
+            setAllocationStep('success');
+            setTimeout(() => setAllocationStep('idle'), 4000);
+        }, 1500);
     };
-
-    const fetchAiInsights = async (hospData, resData) => {
-        setIsAiLoading(true);
-        const insights = {};
-
-        // Calculate regional metrics
-        const avgRegionLoad = hospData.reduce((sum, h) => sum + (h.occupancy || 0), 0) / (hospData.length || 1);
-
-        for (const h of hospData) {
-            const res = resData.find(r => r.hospitalId?._id === h.id || r.hospitalId === h.id);
-            if (res) {
-                try {
-                    // 1. Predict Resource Exhaustion
-                    const exhaustion = await predictResourceExhaustion({
-                        ventilators_avail: res.availableVentilators || 0,
-                        staff_on_duty: res.staffOnDuty || 0,
-                        oxygen_level: res.availableOxygen || 50,
-                        patient_acuity_avg: Math.min(5, (h.erWaitTime || 0) / 10 + 1),
-                        admission_rate: (h.occupancy || 50) / 10
-                    });
-
-                    // 2. Get Reallocation Proposal if stress is high
-                    const stressIndex = (h.occupancy * 0.5) + (h.erWaitTime * 0.3);
-                    const proposal = await getReallocationProposals({
-                        stress_index: stressIndex,
-                        region_load: avgRegionLoad,
-                        local_icu: 100 - (h.icuAvailability || 0)
-                    });
-
-                    insights[h.id] = {
-                        exhaustion,
-                        proposal,
-                        stressLevel: stressIndex
-                    };
-                } catch (err) {
-                    console.error("AI Insight Error for hospital", h.name, err);
-                }
-            }
-        }
-        setAiInsights(insights);
-        setIsAiLoading(false);
-    };
-
-    useEffect(() => {
-        fetchData();
-    }, []);
-
-    const chartData = useMemo(() => {
-        return hospitals.map(h => {
-            const res = resources.find(r => r.hospitalId?._id === h.id || r.hospitalId === h.id);
-            return {
-                id: h.id,
-                hospital: h.name.split(' ')[0],
-                beds: h.occupancy || 0,
-                ventilators: res ? Math.round(((res.ventilators - res.availableVentilators) / (res.ventilators || 1)) * 100) : 0,
-                staff: res ? Math.min(100, Math.round((res.staffOnDuty / 50) * 100)) : 0
-            };
-        });
-    }, [hospitals, resources]);
-
-    const handleTransfer = async () => {
-        if (!transferForm.from || !transferForm.to) {
-            setActionStatus('Error: Please select both source and destination hospitals.');
-            return;
-        }
-        if (transferForm.from === transferForm.to) {
-            setActionStatus('Error: Source and destination must be different.');
-            return;
-        }
-
-        setActionStatus(`Dispatching ${transferForm.count} ${transferForm.type} from ${transferForm.from} to ${transferForm.to}...`);
-
-        const result = await transferResource({
-            fromHospitalName: transferForm.from,
-            toHospitalName: transferForm.to,
-            resourceType: transferForm.type,
-            count: transferForm.count
-        });
-
-        if (result.success) {
-            setActionStatus(`Success: ${result.message}`);
-            setActionHistory(prev => [{
-                id: Date.now(),
-                ...transferForm,
-                timestamp: new Date().toLocaleTimeString(),
-                status: 'Completed'
-            }, ...prev]);
-            fetchData();
-        } else {
-            setActionStatus(`Error: ${result.message}`);
-        }
-        setTimeout(() => setActionStatus(null), 4000);
-    };
-
-    if (isLoading) return <div style={{ padding: 'var(--space-xl)', textAlign: 'center' }}>Synchronizing Resource Inventory...</div>;
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
-            <AnimatePresence>
-                {actionStatus && (
-                    <motion.div
-                        initial={{ y: -20, opacity: 0 }}
-                        animate={{ y: 0, opacity: 1 }}
-                        exit={{ y: -20, opacity: 0 }}
-                        className="card"
-                        style={{
-                            background: actionStatus.includes('Error') ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)',
-                            color: actionStatus.includes('Error') ? 'var(--danger)' : 'var(--success)',
-                            border: `1px solid ${actionStatus.includes('Error') ? 'var(--danger)' : 'var(--success)'}`,
-                            fontWeight: 700,
-                            zIndex: 20
-                        }}
-                    >
-                        {actionStatus}
-                    </motion.div>
-                )}
-            </AnimatePresence>
+            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.8fr', gap: 'var(--space-lg)', minHeight: '600px' }}>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.5fr) 1fr', gap: 'var(--space-lg)' }}>
-                {/* AI Strategic Insights */}
-                <div className="card" style={{ border: '1px solid rgba(var(--primary-rgb), 0.3)', background: 'rgba(var(--primary-rgb), 0.02)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-md)' }}>
-                        <div style={{ display: 'flex', gap: 'var(--space-sm)', alignItems: 'center' }}>
-                            <BrainCircuit size={24} color="var(--primary)" />
-                            <h3 style={{ margin: 0 }}>AI Strategic Intelligence</h3>
-                        </div>
-                        {isAiLoading && <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1 }}><RefreshCw size={16} color="var(--primary)" /></motion.div>}
+                {/* AI Strategic Intelligence Box */}
+                <div className="card" style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    padding: 0,
+                    overflow: 'hidden',
+                    border: '2px solid var(--primary)',
+                    boxShadow: 'var(--shadow-xl)'
+                }}>
+                    <div style={{
+                        background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%)',
+                        padding: 'var(--space-md) var(--space-lg)',
+                        color: 'white',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px'
+                    }}>
+                        <Zap size={22} color="var(--secondary)" />
+                        <h3 style={{ margin: 0, fontSize: '1.1rem', letterSpacing: '0.5px', color: 'white' }}>AI STRATEGIC INTELLIGENCE</h3>
                     </div>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
-                        {hospitals.slice(0, 3).map(h => {
-                            const insight = aiInsights[h.id];
-                            if (!insight) return null;
-                            const isCritical = insight.exhaustion.vent_exhaustion_hours < 5 || insight.exhaustion.staff_exhaustion_hours < 8;
-
-                            return (
-                                <div key={h.id} className="glass" style={{ padding: 'var(--space-sm)', borderRadius: 'var(--radius-md)', border: isCritical ? '1px solid var(--danger)' : '1px solid rgba(255,255,255,0.1)' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                                        <span style={{ fontWeight: 800 }}>{h.name}</span>
-                                        <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
-                                            <span className="badge" style={{ background: insight.stressLevel > 70 ? 'var(--danger)' : 'var(--success)', fontSize: '0.65rem' }}>
-                                                STRESS: {Math.round(insight.stressLevel)}
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 'var(--space-sm)', fontSize: '0.75rem' }}>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                            <span style={{ color: 'var(--text-muted)' }}>Ventilator Failure</span>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 700, color: insight.exhaustion.vent_exhaustion_hours < 12 ? 'var(--danger)' : 'var(--text)' }}>
-                                                <Clock size={12} /> {Math.round(insight.exhaustion.vent_exhaustion_hours)}h
-                                            </div>
-                                        </div>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                            <span style={{ color: 'var(--text-muted)' }}>Staff Burnout Risk</span>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 700, color: insight.exhaustion.staff_exhaustion_hours < 12 ? 'var(--warning)' : 'var(--text)' }}>
-                                                <UserPlus size={12} /> {Math.round(insight.exhaustion.staff_exhaustion_hours)}h
-                                            </div>
-                                        </div>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                            <span style={{ color: 'var(--text-muted)' }}>Oxygen Depletion</span>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 700 }}>
-                                                <Activity size={12} /> {Math.round(insight.exhaustion.oxy_exhaustion_hours)}h
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {insight.proposal && insight.stressLevel > 60 && (
-                                        <div style={{ marginTop: 'var(--space-sm)', padding: '6px', background: 'rgba(var(--primary-rgb), 0.1)', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', fontSize: '0.75rem' }}>
-                                            <Zap size={14} color="var(--primary)" />
-                                            <span><strong>AI Recommendation:</strong> Divert overflow to <strong>{insight.proposal.recommended_target}</strong></span>
-                                        </div>
-                                    )}
+                    <div style={{ flex: 1, padding: 'var(--space-md)', display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+                        <div style={{ fontSize: '0.7rem', fontWeight: 900, color: 'var(--text-muted)', marginBottom: '4px' }}>SELECT HOSPITAL NODE</div>
+                        {MOCK_HOSPITALS.map((h) => (
+                            <motion.div
+                                key={h.id}
+                                onClick={() => setSelectedHospital(h)}
+                                whileHover={{ x: 4 }}
+                                style={{
+                                    padding: '12px 16px',
+                                    borderRadius: '12px',
+                                    cursor: 'pointer',
+                                    background: selectedHospital?.id === h.id ? 'var(--primary-light)' : 'var(--background)',
+                                    border: `1px solid ${selectedHospital?.id === h.id ? 'var(--primary)' : 'var(--surface-border)'}`,
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    transition: 'all 0.2s ease'
+                                }}
+                            >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                    <div style={{
+                                        width: 8, height: 8, borderRadius: '50%',
+                                        background: selectedHospital?.id === h.id ? 'var(--primary)' : 'var(--text-muted)'
+                                    }} />
+                                    <span style={{
+                                        fontSize: '0.85rem',
+                                        fontWeight: 700,
+                                        color: selectedHospital?.id === h.id ? 'var(--primary-dark)' : 'var(--text-main)'
+                                    }}>
+                                        {h.name}
+                                    </span>
                                 </div>
-                            );
-                        })}
+                                <ChevronRight size={16} color={selectedHospital?.id === h.id ? 'var(--primary)' : 'var(--text-muted)'} />
+                            </motion.div>
+                        ))}
+
+                        <div style={{ marginTop: 'auto', padding: 'var(--space-md)', background: 'var(--background)', borderRadius: '12px', border: '1px dashed var(--surface-border)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-muted)' }}>
+                                <RefreshCw size={14} className="pulse-alert" />
+                                <span style={{ fontSize: '0.7rem', fontWeight: 600 }}>NETWORK SYNC: OPTIMAL</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                {/* Manual Reallocation Form */}
-                <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
-                    <div style={{ display: 'flex', gap: 'var(--space-sm)', alignItems: 'center' }}>
-                        <Truck size={20} color="var(--primary)" />
-                        <h3 style={{ margin: 0 }}>Logistics Control</h3>
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)', marginTop: 'var(--space-xs)' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                            <label style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-muted)' }}>SOURCE NODE</label>
-                            <select
-                                className="btn glass"
-                                style={{ width: '100%', textAlign: 'left', appearance: 'auto', padding: '10px' }}
-                                value={transferForm.from}
-                                onChange={(e) => setTransferForm({ ...transferForm, from: e.target.value })}
-                            >
-                                <option value="">Select source...</option>
-                                {hospitals.map(h => <option key={h.id} value={h.name}>{h.name}</option>)}
-                            </select>
-                        </div>
-
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                            <label style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-muted)' }}>DESTINATION NODE</label>
-                            <select
-                                className="btn glass"
-                                style={{ width: '100%', textAlign: 'left', appearance: 'auto', padding: '10px' }}
-                                value={transferForm.to}
-                                onChange={(e) => setTransferForm({ ...transferForm, to: e.target.value })}
-                            >
-                                <option value="">Select target...</option>
-                                {hospitals.map(h => <option key={h.id} value={h.name}>{h.name}</option>)}
-                            </select>
-                        </div>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px', gap: 'var(--space-sm)' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                <label style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-muted)' }}>ASSET TYPE</label>
-                                <select
-                                    className="btn glass"
-                                    style={{ width: '100%', textAlign: 'left', appearance: 'auto', padding: '10px' }}
-                                    value={transferForm.type}
-                                    onChange={(e) => setTransferForm({ ...transferForm, type: e.target.value })}
-                                >
-                                    <option value="ventilators">Ventilators</option>
-                                    <option value="staff">Staff (Float)</option>
-                                    <option value="oxygen">Oxygen Units</option>
-                                </select>
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                <label style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-muted)' }}>QTY</label>
-                                <input
-                                    type="number"
-                                    className="btn glass"
-                                    min="1"
-                                    value={transferForm.count}
-                                    onChange={(e) => setTransferForm({ ...transferForm, count: parseInt(e.target.value) || 1 })}
-                                    style={{ width: '100%', textAlign: 'center', padding: '10px' }}
-                                />
-                            </div>
-                        </div>
-
-                        <button
-                            className="btn btn-primary"
-                            style={{ marginTop: 'var(--space-sm)', width: '100%', gap: 'var(--space-sm)', padding: '12px' }}
-                            onClick={handleTransfer}
+                {/* Resource Details & Control */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
+                    <AnimatePresence mode="wait">
+                        <motion.div
+                            key={selectedHospital?.id}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -10 }}
+                            className="card"
+                            style={{ flex: 1, display: 'flex', flexDirection: 'column' }}
                         >
-                            <Send size={16} /> EXECUTE TRANSFER
-                        </button>
-                    </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-xl)' }}>
+                                <div>
+                                    <h2 style={{ margin: 0, fontSize: '1.5rem', color: 'var(--primary)' }}>{selectedHospital.name}</h2>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                                        <Box size={14} color="var(--text-muted)" />
+                                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Strategic Resource Unit • ID: {selectedHospital.id.toUpperCase()}</span>
+                                    </div>
+                                </div>
+                                <div className="badge badge-success">STABLE NODE</div>
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-lg)', flex: 1 }}>
+                                {[
+                                    { label: 'Ventilators', value: selectedHospital.resources.ventilators, max: 50, icon: <Activity size={20} /> },
+                                    { label: 'ICU Beds', value: selectedHospital.resources.icuBeds, max: 300, icon: <Box size={20} /> },
+                                    { label: 'Staff Capacity', value: selectedHospital.resources.staff, max: 200, icon: <UserCircle2 size={20} /> },
+                                    { label: 'Oxygen Supply', value: selectedHospital.resources.oxygen, max: 100, unit: '%', icon: <Thermometer size={20} /> }
+                                ].map((res, i) => (
+                                    <div key={i} className="glass" style={{ padding: 'var(--space-md)', borderRadius: '16px' }}>
+                                        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '12px' }}>
+                                            <div style={{ background: 'var(--primary-light)', padding: '8px', borderRadius: '10px', color: 'var(--primary)' }}>
+                                                {res.icon}
+                                            </div>
+                                            <span style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--text-muted)' }}>{res.label}</span>
+                                        </div>
+                                        <div style={{ fontSize: '1.8rem', fontWeight: 900, marginBottom: '8px' }}>
+                                            {res.value}{res.unit || ''}
+                                        </div>
+                                        <div style={{ height: '6px', background: 'var(--background)', borderRadius: '3px', overflow: 'hidden' }}>
+                                            <motion.div
+                                                initial={{ width: 0 }}
+                                                animate={{ width: `${(res.value / res.max) * 100}%` }}
+                                                style={{
+                                                    height: '100%',
+                                                    background: (res.value / res.max) > 0.8 ? 'var(--warning)' : 'var(--primary)',
+                                                    borderRadius: '3px'
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div style={{
+                                marginTop: 'var(--space-xl)',
+                                padding: 'var(--space-lg)',
+                                borderRadius: '16px',
+                                background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)',
+                                color: 'white',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                boxShadow: '0 10px 30px rgba(30, 41, 59, 0.2)'
+                            }}>
+                                <div>
+                                    <div style={{ fontWeight: 800, fontSize: '0.8rem', color: '#818cf8', marginBottom: '4px' }}>EXCESS RESOURCE DETECTION</div>
+                                    <p style={{ margin: 0, fontSize: '0.85rem', opacity: 0.9, fontWeight: 600 }}>AI detected surplus capacity. Potential to support <strong>{selectedHospital.nearby}</strong>.</p>
+                                </div>
+                                <button
+                                    className="btn"
+                                    style={{
+                                        background: '#6366f1',
+                                        color: 'white',
+                                        fontWeight: 900,
+                                        padding: '12px 24px',
+                                        borderRadius: '12px',
+                                        border: 'none',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '8px',
+                                        boxShadow: '0 5px 15px rgba(99, 102, 241, 0.3)'
+                                    }}
+                                    onClick={handleTransfer}
+                                    disabled={allocationStep !== 'idle'}
+                                >
+                                    {allocationStep === 'approving' ? 'APPROVING...' : 'SEND EXCESS'}
+                                    <Send size={16} />
+                                </button>
+                            </div>
+                        </motion.div>
+                    </AnimatePresence>
+
+                    {/* Operational Feedback */}
+                    <AnimatePresence>
+                        {lastTransfer && (
+                            <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                exit={{ opacity: 0, height: 0 }}
+                                className="card glass"
+                                style={{ border: 'none', background: 'var(--success-bg)', padding: 'var(--space-md) var(--space-xl)', display: 'flex', alignItems: 'center', gap: 'var(--space-lg)' }}
+                            >
+                                <CheckCircle2 size={24} color="var(--success)" />
+                                <div style={{ flex: 1 }}>
+                                    <div style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--success-dark)' }}>TRANSFER PROTOCOL AUTHORIZED</div>
+                                    <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--success-dark)', opacity: 0.8 }}>
+                                        Excess resources from <strong>{lastTransfer.from}</strong> are now being rerouted to <strong>{lastTransfer.to}</strong>. (Sync: {lastTransfer.time})
+                                    </p>
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
                 </div>
             </div>
 
-            {/* Global Utilization Chart */}
-            <div className="card">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-lg)' }}>
-                    <div style={{ display: 'flex', gap: 'var(--space-sm)', alignItems: 'center' }}>
-                        <Activity size={20} color="var(--primary)" />
-                        <h3 style={{ margin: 0 }}>Regional Resource Utilization (%)</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'var(--space-lg)' }}>
+                {[
+                    { title: 'Global Reserve', value: '412 Units', color: 'var(--primary)' },
+                    { title: 'Allocation Velocity', value: '1.2x/hr', color: 'var(--success)' },
+                    { title: 'Deficit Risk', value: 'Low', color: 'var(--text-muted)' }
+                ].map((stat, i) => (
+                    <div key={i} className="card" style={{ textAlign: 'center', padding: 'var(--space-lg)' }}>
+                        <div style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-muted)', marginBottom: '8px' }}>{stat.title.toUpperCase()}</div>
+                        <div style={{ fontSize: '1.5rem', fontWeight: 900, color: stat.color }}>{stat.value}</div>
                     </div>
-                </div>
-                <div style={{ height: '300px' }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={chartData}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
-                            <XAxis dataKey="hospital" axisLine={false} tickLine={false} tick={{ fontSize: 10 }} />
-                            <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10 }} />
-                            <Tooltip
-                                contentStyle={{ background: 'var(--card-bg)', border: '1px solid var(--primary)', borderRadius: '8px' }}
-                                cursor={{ fill: 'rgba(255,255,255,0.05)' }}
-                            />
-                            <Bar dataKey="beds" name="Beds" fill="var(--primary)" radius={[4, 4, 0, 0]} />
-                            <Bar dataKey="ventilators" name="Ventilators" fill="var(--warning)" radius={[4, 4, 0, 0]} />
-                            <Bar dataKey="staff" name="Staff" fill="var(--success)" radius={[4, 4, 0, 0]} />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </div>
+                ))}
             </div>
         </div>
     );
 };
 
 export default ResourceAllocation;
-

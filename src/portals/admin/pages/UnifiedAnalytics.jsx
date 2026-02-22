@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from 'recharts';
-import { TrendingUp, Target, Zap, Activity, Globe, Info, Calendar, Download, RefreshCw, BarChart2 } from 'lucide-react';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, PieChart, Pie, Cell, BarChart, Bar, ComposedChart, Line } from 'recharts';
+import { TrendingUp, Target, Zap, Activity, Globe, Info, Calendar, Download, RefreshCw, BarChart2, Shield, HeartPulse, Unplug, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { getHospitals, getPatients, getSystemState, getForecast } from '../../../services/api';
@@ -79,117 +79,243 @@ const UnifiedAnalytics = () => {
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
             {/* Strategic Header */}
-            <div className="card glass" style={{ background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%)', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="card" style={{
+                background: 'linear-gradient(135deg, #4338ca 0%, #1e1b4b 100%)',
+                color: 'white',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                border: 'none',
+                boxShadow: 'var(--shadow-xl)'
+            }}>
                 <div style={{ display: 'flex', gap: 'var(--space-xl)', alignItems: 'center' }}>
                     <motion.div
                         animate={{ rotate: 360 }}
-                        transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
+                        transition={{ duration: 25, repeat: Infinity, ease: 'linear' }}
                     >
-                        <Globe size={40} />
+                        <Globe size={40} color="rgba(255,255,255,0.7)" />
                     </motion.div>
                     <div>
-                        <h2 style={{ margin: 0, color: 'white' }}>Unified City Analytics</h2>
-                        <p style={{ margin: '4px 0 0 0', opacity: 0.9 }}>Strategic metrics and predictive foresight for the regional medical network.</p>
+                        <h2 style={{ margin: 0, color: 'white', fontSize: '1.8rem', fontWeight: 900, letterSpacing: '0.5px' }}>Unified Network Intelligence</h2>
+                        <p style={{ margin: '4px 0 0 0', opacity: 0.8, fontWeight: 500, fontSize: '0.9rem' }}>Regional strategic foresight & machine-learning driven capacity optimization.</p>
                     </div>
                 </div>
                 <div style={{ display: 'flex', gap: 'var(--space-md)' }}>
-                    <button onClick={fetchData} className="btn glass" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.3)' }}><RefreshCw size={18} /></button>
-                    <button className="btn glass" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.3)' }}><Download size={18} /> EXPORT DATA</button>
+                    <button onClick={fetchData} className="btn btn-glass-dark" style={{ border: '1px solid rgba(255,255,255,0.15)' }}><RefreshCw size={18} /></button>
+                    <button className="btn btn-glass-dark" style={{ border: '1px solid rgba(255,255,255,0.15)', fontWeight: 800 }}>
+                        <Download size={18} /> DATA SYNC
+                    </button>
                 </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 'var(--space-lg)' }}>
-                {/* Predictive Demand Forecast */}
+                {/* Complex Predictive & Resource Flux Composed Chart */}
                 <div className="card">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-lg)' }}>
                         <div style={{ display: 'flex', gap: 'var(--space-sm)', alignItems: 'center' }}>
-                            <BarChart2 size={20} color="var(--primary)" />
-                            <h3 style={{ margin: 0 }}>Case Volume Forecast (ML)</h3>
+                            <Activity size={20} color="#4f46e5" />
+                            <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Network Capacity Flux (6h Forecast)</h3>
                         </div>
-                        <div style={{ display: 'flex', gap: 'var(--space-md)', fontSize: '0.75rem' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><div style={{ width: 10, height: 10, background: 'var(--primary)', borderRadius: '2px' }} /> Actual</div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><div style={{ width: 10, height: 10, border: '1px dashed var(--primary)', borderRadius: '2px' }} /> Predicted</div>
-                        </div>
+                        <div className="badge badge-success" style={{ fontSize: '0.65rem' }}>AI CONFIDENCE: 94%</div>
                     </div>
                     <div style={{ height: '350px' }}>
                         <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={forecastData}>
-                                <defs>
-                                    <linearGradient id="colorActual" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.3} />
-                                        <stop offset="95%" stopColor="var(--primary)" stopOpacity={0} />
-                                    </linearGradient>
-                                </defs>
+                            <ComposedChart data={forecastData}>
+                                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'var(--text-muted)', fontWeight: 600 }} />
+                                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'var(--text-muted)', fontWeight: 600 }} />
+                                <Tooltip contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: 'var(--shadow-lg)' }} />
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--surface-border)" />
-                                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'var(--text-muted)' }} />
-                                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'var(--text-muted)' }} />
-                                <Tooltip contentStyle={{ borderRadius: 'var(--radius-md)', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }} />
-                                <Area type="monotone" dataKey="actual" stroke="var(--primary)" strokeWidth={3} fillOpacity={1} fill="url(#colorActual)" />
-                                <Area type="monotone" dataKey="predicted" stroke="var(--primary)" strokeWidth={2} strokeDasharray="5 5" fill="none" />
-                            </AreaChart>
+                                <Bar dataKey="actual" barSize={20} fill="#4f46e5" radius={[4, 4, 0, 0]} />
+                                <Line type="monotone" dataKey="predicted" stroke="#ec4899" strokeWidth={3} dot={{ fill: '#ec4899', r: 4 }} />
+                                <Area type="monotone" dataKey="actual" fill="#dee2ff" stroke="none" fillOpacity={0.1} />
+                            </ComposedChart>
                         </ResponsiveContainer>
                     </div>
                 </div>
 
-                {/* Capability Radar */}
-                <div className="card">
-                    <h3 style={{ marginBottom: 'var(--space-lg)' }}>Network Capability Radar</h3>
-                    <div style={{ height: '350px' }}>
-                        <ResponsiveContainer width="100%" height="100%">
-                            <RadarChart cx="50%" cy="50%" outerRadius="80%" data={capabilityData}>
-                                <PolarGrid stroke="var(--surface-border)" />
-                                <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fill: 'var(--text-main)', fontWeight: 600 }} />
-                                <PolarRadiusAxis angle={30} domain={[0, 150]} tick={false} axisLine={false} />
-                                <Radar name="Current" dataKey="A" stroke="var(--primary)" fill="var(--primary)" fillOpacity={0.5} />
-                                <Radar name="Target" dataKey="B" stroke="var(--success)" fill="var(--success)" fillOpacity={0.2} />
-                                <Tooltip />
-                            </RadarChart>
-                        </ResponsiveContainer>
+                {/* Regional Health Score & Key Indices */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
+                    <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                        <div style={{ textAlign: 'center', marginBottom: 'var(--space-md)' }}>
+                            <div style={{ fontSize: '0.7rem', fontWeight: 900, color: 'var(--text-muted)', letterSpacing: '1px' }}>REGIONAL WELLNESS INDEX</div>
+                            <div style={{ fontSize: '2.5rem', fontWeight: 900, color: '#10b981' }}>88.4</div>
+                        </div>
+                        <div style={{ height: '180px', width: '100%' }}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                    <Pie
+                                        data={[
+                                            { name: 'Stability', value: 88.4 },
+                                            { name: 'Risk', value: 11.6 }
+                                        ]}
+                                        cx="50%"
+                                        cy="50%"
+                                        startAngle={180}
+                                        endAngle={0}
+                                        innerRadius={60}
+                                        outerRadius={80}
+                                        paddingAngle={5}
+                                        dataKey="value"
+                                    >
+                                        <Cell fill="#10b981" />
+                                        <Cell fill="#f1f5f9" />
+                                    </Pie>
+                                </PieChart>
+                            </ResponsiveContainer>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', width: '100%', marginTop: 'auto' }}>
+                            <div className="glass" style={{ padding: '12px', borderRadius: '12px', textAlign: 'center' }}>
+                                <div style={{ fontSize: '0.6rem', fontWeight: 800, color: 'var(--text-muted)' }}>STAFF LOAD</div>
+                                <div style={{ fontWeight: 900, color: '#6366f1' }}>LOW</div>
+                            </div>
+                            <div className="glass" style={{ padding: '12px', borderRadius: '12px', textAlign: 'center' }}>
+                                <div style={{ fontSize: '0.6rem', fontWeight: 800, color: 'var(--text-muted)' }}>BED BUFFER</div>
+                                <div style={{ fontWeight: 900, color: '#f59e0b' }}>12%</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="card" style={{ background: '#f8fafc', border: '1px solid var(--surface-border)' }}>
+                        <div style={{ fontSize: '0.7rem', fontWeight: 900, color: 'var(--text-muted)', marginBottom: '12px', letterSpacing: '1px' }}>RESOURCE ALLOCATION DRILL-DOWN</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            {[
+                                { label: 'Oxygen Reserves', value: 92, color: '#3b82f6' },
+                                { label: 'Emergency Tech', value: 78, color: '#8b5cf6' },
+                                { label: 'Surgical Units', value: 64, color: '#10b981' }
+                            ].map((res, i) => (
+                                <div key={i}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', fontWeight: 700, marginBottom: '4px' }}>
+                                        <span>{res.label}</span>
+                                        <span>{res.value}%</span>
+                                    </div>
+                                    <div style={{ height: '6px', background: 'white', borderRadius: '3px', overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+                                        <motion.div
+                                            initial={{ width: 0 }}
+                                            animate={{ width: `${res.value}%` }}
+                                            style={{ height: '100%', background: res.color }}
+                                        />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'var(--space-lg)' }}>
-                <div className="card glass" style={{ borderLeft: '4px solid var(--primary)' }}>
-                    <div style={{ display: 'flex', gap: 'var(--space-sm)', alignItems: 'center', marginBottom: 'var(--space-sm)' }}>
-                        <Target size={18} color="var(--primary)" />
-                        <h4 style={{ margin: 0 }}>Efficiency Gap</h4>
+                {[
+                    { title: 'Efficiency Gap', icon: <Target size={18} color="#6366f1" />, color: '#6366f1', text: `Network is operating at ${(hospitals.filter(h => h.occupancy > 80).length / hospitals.length * 100).toFixed(0)}% high-load distribution variance.` },
+                    { title: 'Surge Risk Alert', icon: <Zap size={18} color="#f59e0b" />, color: '#f59e0b', text: `Regional load volatility is ${systemState?.globalAlertLevel === 'Critical' ? 'EXCEPTIONAL' : 'MODERATE'}. Protocol active: ${systemState?.redistributionProtocolActive ? 'YES' : 'NO'}.` },
+                    { title: 'Coordination ROI', icon: <TrendingUp size={18} color="#10b981" />, color: '#10b981', text: 'Load balancing has reduced critical exit wait times by an estimated 14.5% network-wide.' }
+                ].map((stat, i) => (
+                    <motion.div
+                        key={i}
+                        whileHover={{ y: -8, boxShadow: '0 15px 35px rgba(0,0,0,0.1)' }}
+                        className="card glass"
+                        style={{ borderLeft: `6px solid ${stat.color}`, background: 'white', display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}
+                    >
+                        <div style={{ display: 'flex', gap: 'var(--space-sm)', alignItems: 'center' }}>
+                            {stat.icon}
+                            <h4 style={{ margin: 0, fontWeight: 800 }}>{stat.title}</h4>
+                        </div>
+                        <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600, lineHeight: 1.5 }}>
+                            {stat.text}
+                        </p>
+                    </motion.div>
+                ))}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-lg)' }}>
+                {/* Capability Radar */}
+                <div className="card">
+                    <div style={{ display: 'flex', gap: 'var(--space-sm)', alignItems: 'center', marginBottom: 'var(--space-lg)' }}>
+                        <Shield size={20} color="#8b5cf6" />
+                        <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Medical Excellence Radar</h3>
                     </div>
-                    <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                        Network is operating at {(hospitals.filter(h => h.occupancy > 80).length / hospitals.length * 100).toFixed(0)}% high-load distribution variance.
-                    </p>
+                    <div style={{ height: '280px' }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                            <RadarChart cx="50%" cy="50%" outerRadius="80%" data={capabilityData}>
+                                <PolarGrid stroke="var(--surface-border)" />
+                                <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fill: 'var(--text-main)', fontWeight: 600 }} />
+                                <PolarRadiusAxis angle={30} domain={[0, 150]} tick={false} axisLine={false} />
+                                <Radar name="Current Performance" dataKey="A" stroke="#8b5cf6" strokeWidth={3} fill="#8b5cf6" fillOpacity={0.4} />
+                                <Radar name="Regional Target" dataKey="B" stroke="#34d399" strokeWidth={2} strokeDasharray="4 2" fill="#34d399" fillOpacity={0.1} />
+                                <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: 'var(--shadow-lg)' }} />
+                            </RadarChart>
+                        </ResponsiveContainer>
+                    </div>
                 </div>
-                <div className="card glass" style={{ borderLeft: '4px solid var(--warning)' }}>
-                    <div style={{ display: 'flex', gap: 'var(--space-sm)', alignItems: 'center', marginBottom: 'var(--space-sm)' }}>
-                        <Zap size={18} color="var(--warning)" />
-                        <h4 style={{ margin: 0 }}>Surge Risk Alert</h4>
+
+                {/* Node Performance Leaderboard */}
+                <div className="card" style={{ background: '#f8fafc', border: '1px solid var(--surface-border)' }}>
+                    <div style={{ display: 'flex', gap: 'var(--space-sm)', alignItems: 'center', marginBottom: 'var(--space-lg)' }}>
+                        <TrendingUp size={20} color="#10b981" />
+                        <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Top Regional Hospital Nodes</h3>
                     </div>
-                    <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                        Regional load volatility is {systemState?.globalAlertLevel === 'Critical' ? 'EXCEPTIONAL' : 'MODERATE'}. Protocol active: {systemState?.redistributionProtocolActive ? 'YES' : 'NO'}.
-                    </p>
-                </div>
-                <div className="card glass" style={{ borderLeft: '4px solid var(--success)' }}>
-                    <div style={{ display: 'flex', gap: 'var(--space-sm)', alignItems: 'center', marginBottom: 'var(--space-sm)' }}>
-                        <TrendingUp size={18} color="var(--success)" />
-                        <h4 style={{ margin: 0 }}>Coordination ROI</h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
+                        {[
+                            { name: 'Apollo Greams Road', score: 98.4, trend: 'up', color: '#10b981' },
+                            { name: 'MIOT International', score: 96.2, trend: 'up', color: '#3b82f6' },
+                            { name: 'Fortis Malar', score: 92.5, trend: 'stable', color: '#6366f1' },
+                            { name: 'Global Health City', score: 89.1, trend: 'down', color: '#f59e0b' }
+                        ].map((node, i) => (
+                            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: 'white', borderRadius: '12px', border: '1px solid var(--surface-border)' }}>
+                                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                                    <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: `${node.color}20`, color: node.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '0.8rem' }}>{i + 1}</div>
+                                    <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>{node.name}</span>
+                                </div>
+                                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                                    <span style={{ fontSize: '0.9rem', fontWeight: 800 }}>{node.score}</span>
+                                    {node.trend === 'up' && <ArrowUpRight size={16} color="#10b981" />}
+                                    {node.trend === 'down' && <ArrowDownRight size={16} color="#ef4444" />}
+                                </div>
+                            </div>
+                        ))}
                     </div>
-                    <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                        Load balancing has reduced critical exit wait times by an estimated 14.5% network-wide.
-                    </p>
                 </div>
             </div>
 
-            <div className="card" style={{ background: 'var(--text-main)', color: 'white', display: 'flex', gap: 'var(--space-md)', alignItems: 'center' }}>
-                <Info size={24} color="var(--primary-light)" />
-                <p style={{ margin: 0, fontSize: '0.85rem', flex: 1 }}>
-                    <strong>Admin Strategist:</strong> {systemState?.globalAlertLevel === 'Critical' ? 'Immediate protocol escalation recommended.' : 'Stable operations detected. Suggest periodic redistribution to maintain equilibrium.'}
-                </p>
-                <button
-                    className="btn btn-primary"
-                    onClick={() => navigate('/admin/policies')}
-                >
-                    ADJUST STRATEGIC POLICIES
-                </button>
+            <div className="card" style={{
+                background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)',
+                color: 'white',
+                display: 'flex',
+                gap: 'var(--space-xl)',
+                alignItems: 'center',
+                border: 'none',
+                boxShadow: '0 20px 50px rgba(30, 41, 59, 0.2)'
+            }}>
+                <div style={{ background: 'rgba(255,255,255,0.1)', padding: '16px', borderRadius: '50%' }}>
+                    <motion.div animate={{ scale: [1, 1.1, 1] }} transition={{ repeat: Infinity, duration: 4 }}>
+                        <HeartPulse size={36} color="#818cf8" />
+                    </motion.div>
+                </div>
+                <div style={{ flex: 1 }}>
+                    <h4 style={{ margin: '0 0 4px 0', color: '#818cf8', letterSpacing: '1px', fontSize: '0.8rem', fontWeight: 900 }}>NETWORK HEALTH ADVISORY</h4>
+                    <p style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700 }}>
+                        {systemState?.globalAlertLevel === 'Critical' ? 'CRITICAL SATURATION: Regional load exceed safety margins. All standby protocols must be synchronized immediately.' : 'STABLE EQUILIBRIUM: City-wide load is within nominal bounds. AI suggests focus on preventive maintenance cycles.'}
+                    </p>
+                </div>
+                <div style={{ display: 'flex', gap: 'var(--space-md)' }}>
+                    <div className="glass" style={{ padding: '12px 20px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                        <div style={{ fontSize: '0.65rem', opacity: 0.7, fontWeight: 800 }}>PROTOCOL ROI</div>
+                        <div style={{ fontWeight: 900, fontSize: '1.2rem', color: '#34d399' }}>+22%</div>
+                    </div>
+                    <button
+                        className="btn"
+                        style={{
+                            background: '#4f46e5',
+                            color: 'white',
+                            fontWeight: 900,
+                            padding: '12px 32px',
+                            borderRadius: '16px',
+                            border: 'none',
+                            boxShadow: '0 8px 16px rgba(79, 70, 229, 0.3)'
+                        }}
+                        onClick={() => navigate('/admin/policies')}
+                    >
+                        SYNC POLICIES
+                    </button>
+                </div>
             </div>
         </div>
     );

@@ -59,7 +59,6 @@ const adminMenu = [
   { path: '/admin/policies', label: 'Policy Mgmt', icon: Settings },
   { path: '/admin/coordination', label: 'Inter-Hospital', icon: GitBranch },
   { path: '/admin/alerts', label: 'Operational Alerts', icon: Bell },
-  { path: '/admin/oversight', label: 'Care Oversight', icon: Activity },
   { path: '/admin/analytics', label: 'Unified Analytics', icon: PieChart },
 ];
 
@@ -109,7 +108,6 @@ function App() {
         <Route path="policies" element={<AdminPages.PolicyManagement />} />
         <Route path="coordination" element={<AdminPages.CoordinationPanel />} />
         <Route path="alerts" element={<AdminPages.OperationalAlerts />} />
-        <Route path="oversight" element={<AdminPages.CareOversight />} />
         <Route path="analytics" element={<AdminPages.UnifiedAnalytics />} />
       </Route>
     </Routes>
